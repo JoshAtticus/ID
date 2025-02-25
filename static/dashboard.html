@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - SCEAID</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
     <style>
         body {
-            font-family: 'Google Sans','Noto Sans Myanmar UI',arial,sans-serif;
+            font-family: 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
             margin: 0;
             padding: 0;
             background: #f1f3f4;
@@ -15,7 +17,7 @@
         .header {
             background: #fff;
             padding: 16px 24px;
-            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -50,7 +52,7 @@
             border-radius: 8px;
             padding: 24px;
             margin-bottom: 24px;
-            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
         }
 
         .welcome-card h2 {
@@ -74,7 +76,7 @@
             background: #fff;
             border-radius: 8px;
             padding: 16px;
-            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
         }
 
         .info-card h3 {
@@ -127,7 +129,7 @@
             border-radius: 8px;
             padding: 16px;
             margin-bottom: 16px;
-            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
             display: flex;
             align-items: center;
             gap: 16px;
@@ -165,7 +167,7 @@
             border-radius: 50%;
             object-fit: cover;
             border: 3px solid #fff;
-            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
             transition: filter 0.3s ease;
         }
 
@@ -203,7 +205,7 @@
             border-radius: 8px;
             padding: 16px;
             margin-bottom: 16px;
-            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -241,7 +243,7 @@
             border-radius: 8px;
             padding: 24px;
             margin-bottom: 24px;
-            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
         }
 
         .security-section h3 {
@@ -309,6 +311,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="header">
         <h1>SCEAID Dashboard</h1>
@@ -341,9 +344,11 @@
 
             <div class="tab-content" id="personal-info">
                 <div class="profile-picture-container">
-                    <img id="profilePicture" class="profile-picture" src="/static/uploads/default.png" alt="Profile Picture">
+                    <img id="profilePicture" class="profile-picture" src="/static/uploads/default.png"
+                        alt="Profile Picture">
                     <input type="file" id="profilePictureUpload" class="profile-picture-upload" accept="image/*">
-                    <button class="profile-picture-button" onclick="document.getElementById('profilePictureUpload').click()">
+                    <button class="profile-picture-button"
+                        onclick="document.getElementById('profilePictureUpload').click()">
                         Change Picture
                     </button>
                 </div>
@@ -384,6 +389,75 @@
     </div>
 
     <script>
+        // Add these functions before the existing code
+
+        function parseUserAgent(userAgent) {
+            const parser = new UAParser(userAgent);
+            const result = parser.getResult();
+            const browser = result.browser.name || 'Unknown Browser';
+            const os = result.os.name || 'Unknown OS';
+
+            return `${browser} on ${os}`;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+
+            // Ensure both dates are in UTC for accurate comparison
+            const diffMs = now.getTime() - date.getTime();
+            const diffMins = Math.floor(diffMs / (1000 * 60));
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+            if (diffMins < 1) {
+                return 'Just now';
+            } else if (diffMins < 60) {
+                return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+            } else if (diffHours < 24) {
+                return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+            } else if (diffDays < 7) {
+                return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+            } else {
+                return date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: 'AWST' // Ensure consistent timezone display
+                });
+            }
+        }
+
+        function renderActiveSessions(sessions) {
+            const activeSessionsDiv = document.getElementById('activeSessions');
+            activeSessionsDiv.innerHTML = sessions.map(session => `
+                <div class="session-card">
+                    <div class="session-info">
+                        <h4>${parseUserAgent(session.deviceName)}</h4>
+                        <p>${session.location} • Last active ${formatDate(session.lastActive)}</p>
+                    </div>
+                    <div class="session-actions">
+                        ${session.current ?
+                    '<button disabled>Current Session</button>' :
+                    `<button onclick="endSession('${session.id}')">End Session</button>`
+                }
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderLoginHistory(history) {
+            const loginHistoryDiv = document.getElementById('loginHistory');
+            loginHistoryDiv.innerHTML = history.map(login => `
+                <div class="login-record">
+                    <p class="login-time">${formatDate(login.timestamp)}</p>
+                    <p>${parseUserAgent(login.deviceName)} • ${login.location}</p>
+                </div>
+            `).join('');
+        }
+
         // Check if user is logged in
         const token = localStorage.getItem('token');
         if (!token) {
@@ -406,7 +480,7 @@
                 }
 
                 const data = await response.json();
-                
+
                 // Update all user information
                 document.getElementById('userName').textContent = data.full_name;
                 document.getElementById('userNumber').textContent = data.user_number;
@@ -459,7 +533,7 @@
                 // Remove active class from all tabs and content
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                
+
                 // Add active class to clicked tab and corresponding content
                 tab.classList.add('active');
                 document.getElementById(tab.dataset.tab).classList.add('active');
@@ -560,34 +634,6 @@
             }
         }
 
-        function renderActiveSessions(sessions) {
-            const activeSessionsDiv = document.getElementById('activeSessions');
-            activeSessionsDiv.innerHTML = sessions.map(session => `
-                <div class="session-card">
-                    <div class="session-info">
-                        <h4>${session.deviceName}</h4>
-                        <p>${session.location} • Last active ${formatDate(session.lastActive)}</p>
-                    </div>
-                    <div class="session-actions">
-                        ${session.current ? 
-                            '<button disabled>Current Session</button>' :
-                            `<button onclick="endSession('${session.id}')">End Session</button>`
-                        }
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderLoginHistory(history) {
-            const loginHistoryDiv = document.getElementById('loginHistory');
-            loginHistoryDiv.innerHTML = history.map(login => `
-                <div class="login-record">
-                    <p class="login-time">${formatDate(login.timestamp)}</p>
-                    <p>${login.deviceName} • ${login.location}</p>
-                </div>
-            `).join('');
-        }
-
         async function endSession(sessionId) {
             try {
                 const response = await fetch('/account/end-session', {
@@ -600,22 +646,16 @@
                 });
 
                 if (!response.ok) throw new Error('Failed to end session');
-                
+
                 await fetchSecurityData(); // Refresh the security data
             } catch (error) {
                 console.error('Error ending session:', error);
             }
         }
 
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            return new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(
-                Math.floor((date - new Date()) / (1000 * 60 * 60 * 24)), 'day'
-            );
-        }
-
         // Add event listener for security tab
         document.querySelector('[data-tab="security"]').addEventListener('click', fetchSecurityData);
     </script>
 </body>
+
 </html>

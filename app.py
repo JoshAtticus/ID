@@ -4,7 +4,7 @@ import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from werkzeug.utils import secure_filename
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 app = Flask(__name__)
@@ -42,15 +42,15 @@ class Session(db.Model):
     token = db.Column(db.String(500), nullable=False)
     device_name = db.Column(db.String(100))
     location = db.Column(db.String(100))
-    last_active = db.Column(db.DateTime, default=datetime.utcnow)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_active = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 class LoginHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     device_name = db.Column(db.String(100))
     location = db.Column(db.String(100))
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 @app.route('/account/create', methods=['POST'])
 def create_account():
@@ -110,7 +110,7 @@ def login():
         # Generate token
         token = jwt.encode({
             'user_number': user_number,
-            'exp': datetime.utcnow() + timedelta(hours=1)
+            'exp': datetime.now(timezone.utc) + timedelta(hours=1)
         }, app.config['SECRET_KEY'], algorithm='HS256')
         
         # Create new session
@@ -249,6 +249,7 @@ def get_security_data():
         return jsonify({'message': 'Token is missing'}), 401
 
     try:
+        # Verify token
         data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         user = User.query.filter_by(user_number=data['user_number']).first()
         
@@ -263,18 +264,29 @@ def get_security_data():
             'current': session.token == token
         } for session in user.sessions]
 
+        # Fixed: Properly query login history with order_by
+        login_history_query = LoginHistory.query.filter_by(user_id=user.id)\
+            .order_by(LoginHistory.timestamp.desc())\
+            .limit(10).all()
+
         login_history = [{
             'deviceName': log.device_name,
             'location': log.location,
             'timestamp': log.timestamp.isoformat()
-        } for log in user.login_history.order_by(LoginHistory.timestamp.desc()).limit(10)]
+        } for log in login_history_query]
 
         return jsonify({
             'sessions': sessions,
             'loginHistory': login_history
         })
-    except:
+    except jwt.ExpiredSignatureError:
+        return jsonify({'message': 'Token has expired'}), 401
+    except jwt.InvalidTokenError:
         return jsonify({'message': 'Invalid token'}), 401
+    except Exception as e:
+        # Log the actual error for debugging
+        print(f"Security data error: {str(e)}")
+        return jsonify({'message': 'Internal server error'}), 500
 
 @app.route('/account/end-session', methods=['POST'])
 def end_session():
