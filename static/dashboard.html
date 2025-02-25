@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SCEAID</title>
+    <style>
+        body {
+            font-family: 'Google Sans','Noto Sans Myanmar UI',arial,sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f1f3f4;
+        }
+
+        .header {
+            background: #fff;
+            padding: 16px 24px;
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #202124;
+            font-size: 22px;
+            font-weight: 400;
+            margin: 0;
+        }
+
+        .logout-button {
+            background: #1a73e8;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 24px;
+        }
+
+        .welcome-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+        }
+
+        .welcome-card h2 {
+            margin: 0 0 8px 0;
+        }
+
+        .welcome-card .email {
+            color: #5f6368;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .user-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .info-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+        }
+
+        .info-card h3 {
+            color: #5f6368;
+            font-size: 14px;
+            margin: 0 0 8px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .info-card p {
+            color: #202124;
+            font-size: 16px;
+            margin: 0;
+        }
+
+        .tab-container {
+            margin-bottom: 24px;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #dadce0;
+            margin-bottom: 24px;
+        }
+
+        .tab {
+            padding: 16px 24px;
+            color: #5f6368;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            font-weight: 500;
+        }
+
+        .tab.active {
+            color: #1a73e8;
+            border-bottom-color: #1a73e8;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .sign-in-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .sign-in-info h4 {
+            margin: 0 0 4px 0;
+            color: #202124;
+        }
+
+        .sign-in-info p {
+            margin: 0;
+            color: #5f6368;
+            font-size: 14px;
+        }
+
+        .recommendations-placeholder {
+            text-align: center;
+            padding: 48px;
+            color: #5f6368;
+        }
+
+        .profile-picture-container {
+            text-align: center;
+            margin-bottom: 24px;
+            position: relative;
+            width: 150px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .profile-picture {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #fff;
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            transition: filter 0.3s ease;
+        }
+
+        .profile-picture-upload {
+            display: none;
+        }
+
+        .profile-picture-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(26, 115, 232, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .profile-picture-container:hover .profile-picture {
+            filter: brightness(70%);
+        }
+
+        .profile-picture-container:hover .profile-picture-button {
+            opacity: 1;
+        }
+
+        .recommendation-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .recommendation-info h4 {
+            margin: 0 0 4px 0;
+            color: #202124;
+        }
+
+        .recommendation-info p {
+            margin: 0;
+            color: #5f6368;
+            font-size: 14px;
+        }
+
+        .recommendation-button {
+            background: #1a73e8;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .recommendation-button:hover {
+            background: #1557b0;
+        }
+
+        .security-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+        }
+
+        .security-section h3 {
+            color: #202124;
+            font-size: 18px;
+            margin: 0 0 16px 0;
+        }
+
+        .session-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            border-bottom: 1px solid #dadce0;
+        }
+
+        .session-info {
+            flex-grow: 1;
+        }
+
+        .session-info h4 {
+            margin: 0 0 4px 0;
+            color: #202124;
+        }
+
+        .session-info p {
+            margin: 0;
+            color: #5f6368;
+            font-size: 14px;
+        }
+
+        .session-actions button {
+            background: #dc3545;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .session-actions button:hover {
+            background: #c82333;
+        }
+
+        .login-record {
+            padding: 12px 16px;
+            border-bottom: 1px solid #dadce0;
+        }
+
+        .login-record:last-child {
+            border-bottom: none;
+        }
+
+        .login-record p {
+            margin: 0;
+            color: #5f6368;
+            font-size: 14px;
+        }
+
+        .login-record .login-time {
+            color: #202124;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SCEAID Dashboard</h1>
+        <button class="logout-button" id="logoutButton">Logout</button>
+    </div>
+
+    <div class="container">
+        <div class="welcome-card">
+            <h2>Welcome back, <span id="userName">User</span></h2>
+            <p class="email" id="email"></p>
+        </div>
+
+        <div class="tab-container">
+            <div class="tabs">
+                <div class="tab active" data-tab="recommendations">Recommendations</div>
+                <div class="tab" data-tab="personal-info">Personal Info</div>
+                <div class="tab" data-tab="security">Security</div>
+                <div class="tab" data-tab="apps">Authorised Apps</div>
+            </div>
+
+            <div class="tab-content active" id="recommendations">
+                <div id="recommendationsList">
+                    <!-- Recommendations will be loaded here -->
+                </div>
+                <div id="noRecommendations" class="recommendations-placeholder" style="display: none;">
+                    <h3>No recommendations available</h3>
+                    <p>Check back later for personalized recommendations</p>
+                </div>
+            </div>
+
+            <div class="tab-content" id="personal-info">
+                <div class="profile-picture-container">
+                    <img id="profilePicture" class="profile-picture" src="/static/uploads/default.png" alt="Profile Picture">
+                    <input type="file" id="profilePictureUpload" class="profile-picture-upload" accept="image/*">
+                    <button class="profile-picture-button" onclick="document.getElementById('profilePictureUpload').click()">
+                        Change Picture
+                    </button>
+                </div>
+                <div class="user-info">
+                    <div class="info-card">
+                        <h3>User Number</h3>
+                        <p id="userNumber">-</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>Full Name</h3>
+                        <p id="fullName">-</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>Date of Birth</h3>
+                        <p id="dob">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="apps">
+                <div class="recommendations-placeholder">
+                    <h3>No authorised apps</h3>
+                    <p>You haven't authorised any applications yet</p>
+                </div>
+            </div>
+
+            <div class="tab-content" id="security">
+                <div class="security-section">
+                    <h3>Active Sessions</h3>
+                    <div id="activeSessions"></div>
+                </div>
+                <div class="security-section">
+                    <h3>Recent Login History</h3>
+                    <div id="loginHistory"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/';
+        }
+
+        // Fetch user details
+        async function fetchUserDetails() {
+            try {
+                const response = await fetch('/account/details', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': token,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch user details');
+                }
+
+                const data = await response.json();
+                
+                // Update all user information
+                document.getElementById('userName').textContent = data.full_name;
+                document.getElementById('userNumber').textContent = data.user_number;
+                document.getElementById('fullName').textContent = data.full_name;
+                document.getElementById('email').textContent = data.email;
+                document.getElementById('dob').textContent = data.dob;
+
+                if (data.profile_picture) {
+                    document.getElementById('profilePicture').src = '/static/uploads/' + data.profile_picture;
+                }
+            } catch (error) {
+                console.error('Error fetching user details:', error);
+            }
+        }
+
+        // Verify token and get user info
+        async function verifyToken() {
+            try {
+                const response = await fetch('/account/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                await fetchUserDetails(); // Call fetchUserDetails after verification
+            } catch (error) {
+                localStorage.removeItem('token');
+                window.location.href = '/';
+            }
+        }
+
+        // Logout functionality
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+        });
+
+        // Initialise dashboard
+        verifyToken();
+
+        // Add this to the existing JavaScript
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and content
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab and corresponding content
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        async function fetchRecommendations() {
+            try {
+                const response = await fetch('/account/recommendations', {
+                    headers: {
+                        'Authorization': token
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch recommendations');
+
+                const data = await response.json();
+                const recommendationsList = document.getElementById('recommendationsList');
+                const noRecommendations = document.getElementById('noRecommendations');
+
+                if (data.recommendations.length === 0) {
+                    recommendationsList.style.display = 'none';
+                    noRecommendations.style.display = 'block';
+                    return;
+                }
+
+                recommendationsList.style.display = 'block';
+                noRecommendations.style.display = 'none';
+                recommendationsList.innerHTML = data.recommendations.map(rec => `
+                    <div class="recommendation-card">
+                        <div class="recommendation-info">
+                            <h4>${rec.message}</h4>
+                        </div>
+                        <button class="recommendation-button" onclick="handleRecommendationAction('${rec.action}')">
+                            Set Profile Picture
+                        </button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching recommendations:', error);
+            }
+        }
+
+        function handleRecommendationAction(acation) {
+            if (action === 'set_profile_picture') {
+                document.querySelector('[data-tab="personal-info"]').click();
+                document.getElementById('profilePictureUpload').click();
+            }
+        }
+
+        // Add profile picture upload handler
+        document.getElementById('profilePictureUpload').addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/account/profile-picture', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Failed to upload profile picture');
+
+                const data = await response.json();
+                document.getElementById('profilePicture').src = '/static/uploads/' + data.filename;
+                fetchRecommendations(); // Refresh recommendations
+            } catch (error) {
+                console.error('Error uploading profile picture:', error);
+            }
+        });
+
+        // Add to initialization
+        verifyToken().then(() => {
+            fetchRecommendations();
+        });
+
+        async function fetchSecurityData() {
+            try {
+                const response = await fetch('/account/security', {
+                    headers: {
+                        'Authorization': token
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch security data');
+
+                const data = await response.json();
+                renderActiveSessions(data.sessions);
+                renderLoginHistory(data.loginHistory);
+            } catch (error) {
+                console.error('Error fetching security data:', error);
+            }
+        }
+
+        function renderActiveSessions(sessions) {
+            const activeSessionsDiv = document.getElementById('activeSessions');
+            activeSessionsDiv.innerHTML = sessions.map(session => `
+                <div class="session-card">
+                    <div class="session-info">
+                        <h4>${session.deviceName}</h4>
+                        <p>${session.location} • Last active ${formatDate(session.lastActive)}</p>
+                    </div>
+                    <div class="session-actions">
+                        ${session.current ? 
+                            '<button disabled>Current Session</button>' :
+                            `<button onclick="endSession('${session.id}')">End Session</button>`
+                        }
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderLoginHistory(history) {
+            const loginHistoryDiv = document.getElementById('loginHistory');
+            loginHistoryDiv.innerHTML = history.map(login => `
+                <div class="login-record">
+                    <p class="login-time">${formatDate(login.timestamp)}</p>
+                    <p>${login.deviceName} • ${login.location}</p>
+                </div>
+            `).join('');
+        }
+
+        async function endSession(sessionId) {
+            try {
+                const response = await fetch('/account/end-session', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ sessionId })
+                });
+
+                if (!response.ok) throw new Error('Failed to end session');
+                
+                await fetchSecurityData(); // Refresh the security data
+            } catch (error) {
+                console.error('Error ending session:', error);
+            }
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(
+                Math.floor((date - new Date()) / (1000 * 60 * 60 * 24)), 'day'
+            );
+        }
+
+        // Add event listener for security tab
+        document.querySelector('[data-tab="security"]').addEventListener('click', fetchSecurityData);
+    </script>
+</body>
+</html>

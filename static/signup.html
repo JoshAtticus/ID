@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account - SCEAID</title>
+    <style>
+        body {
+            font-family: 'Google Sans','Noto Sans Myanmar UI',arial,sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fff;
+        }
+
+        .login-container {
+            width: 448px;
+            padding: 48px 40px 36px;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        h2 {
+            color: #202124;
+            font-size: 24px;
+            font-weight: 400;
+            margin: 0 0 30px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .input-group {
+            position: relative;
+            text-align: left;
+        }
+
+        input {
+            width: 100%;
+            padding: 13px 15px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 16px;
+            color: #202124;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        input:focus {
+            border: 2px solid #1a73e8;
+            padding: 12px 14px;
+        }
+
+        label {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #5f6368;
+            transition: 0.2s ease all;
+            pointer-events: none;
+        }
+
+        input:focus + label,
+        input:not(:placeholder-shown) + label {
+            top: 0;
+            background: white;
+            padding: 0 4px;
+            font-size: 12px;
+            color: #1a73e8;
+        }
+
+        button {
+            background: #1a73e8;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            align-self: flex-end;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: #1557b0;
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+        }
+
+        .error-text {
+            color: #d93025;
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        input.error {
+            border-color: #d93025;
+        }
+
+        input.error:focus {
+            border-color: #d93025;
+        }
+
+        input.error + label {
+            color: #d93025;
+        }
+
+        .error-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .error-container h2 {
+            color: #202124;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        .error-container p {
+            color: #5f6368;
+            font-size: 16px;
+            margin-bottom: 24px;
+        }
+
+        .try-again-button {
+            background: #1a73e8;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>Create Account</h2>
+        <form id="signupForm">
+            <div class="input-group">
+                <input type="text" id="user_number" name="user_number" required placeholder=" " pattern="1[0-9]{5}">
+                <label for="user_number">User Number (6 digits starting with 1)</label>
+                <div class="error-text" id="user-error"></div>
+            </div>
+            <div class="input-group">
+                <input type="text" id="full_name" name="full_name" required placeholder=" ">
+                <label for="full_name">Full Name</label>
+                <div class="error-text" id="name-error"></div>
+            </div>
+            <div class="input-group">
+                <input type="date" id="dob" name="dob" required placeholder=" ">
+                <label for="dob">Date of Birth</label>
+                <div class="error-text" id="dob-error"></div>
+            </div>
+            <div class="input-group">
+                <input type="email" id="email" name="email" required placeholder=" ">
+                <label for="email">School Email (firstname.lastname@mundaringcc.wa.edu.au)</label>
+                <div class="error-text" id="email-error"></div>
+            </div>
+            <div class="input-group">
+                <input type="password" id="password" name="password" required placeholder=" ">
+                <label for="password">Create password</label>
+                <div class="error-text" id="password-error"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <a href="/" style="color: #1a73e8; text-decoration: none;">I have an account</a>
+                <button type="submit">Create Account</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('signupForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const user_number = document.getElementById('user_number').value;
+            const full_name = document.getElementById('full_name').value;
+            const dob = document.getElementById('dob').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/account/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        user_number, 
+                        full_name, 
+                        dob, 
+                        email, 
+                        password 
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    window.location.href = '/';  // Redirect to login page
+                } else {
+                    const errorText = document.getElementById('user-error');
+                    errorText.textContent = data.message;
+                    errorText.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>

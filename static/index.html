@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in - SCEAID</title>
+    <style>
+        body {
+            font-family: 'Google Sans','Noto Sans Myanmar UI',arial,sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fff;
+        }
+
+        .login-container {
+            width: 448px;
+            padding: 48px 40px 36px;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        h2 {
+            color: #202124;
+            font-size: 24px;
+            font-weight: 400;
+            margin: 0 0 30px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .input-group {
+            position: relative;
+            text-align: left;
+        }
+
+        input {
+            width: 100%;
+            padding: 13px 15px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 16px;
+            color: #202124;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        input:focus {
+            border: 2px solid #1a73e8;
+            padding: 12px 14px;
+        }
+
+        label {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #5f6368;
+            transition: 0.2s ease all;
+            pointer-events: none;
+        }
+
+        input:focus + label,
+        input:not(:placeholder-shown) + label {
+            top: 0;
+            background: white;
+            padding: 0 4px;
+            font-size: 12px;
+            color: #1a73e8;
+        }
+
+        button {
+            background: #1a73e8;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            align-self: flex-end;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: #1557b0;
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+        }
+
+        .error-text {
+            color: #d93025;
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        input.error {
+            border-color: #d93025;
+        }
+
+        input.error:focus {
+            border-color: #d93025;
+        }
+
+        input.error + label {
+            color: #d93025;
+        }
+
+        .error-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .error-container h2 {
+            color: #202124;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        .error-container p {
+            color: #5f6368;
+            font-size: 16px;
+            margin-bottom: 24px;
+        }
+
+        .try-again-button {
+            background: #1a73e8;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>Sign in</h2>
+        <form id="userNumberForm">
+            <div class="input-group">
+                <input type="text" id="user_number" name="user_number" required placeholder=" ">
+                <label for="user_number">User Number</label>
+                <div class="error-text" id="user-error">Couldn't find your account</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <a href="/signup" style="color: #1a73e8; text-decoration: none;">Don't have an account?</a>
+                <button type="submit">Next</button>
+            </div>
+        </form>
+        
+        <form id="passwordForm" style="display: none;">
+            <div class="input-group">
+                <input type="password" id="password" name="password" required placeholder=" ">
+                <label for="password">Enter your password</label>
+                <div class="error-text" id="password-error">Wrong password. Try again.</div>
+            </div>
+            <a href="/signup" style="color: #1a73e8; text-decoration: none;">Don't have an account?</a>
+            <button type="submit">Sign in</button>
+        </form>
+    </div>
+
+    <div class="error-container" id="errorContainer">
+        <h2>Something went wrong</h2>
+        <p>An error occurred while processing your request. Please try again.</p>
+        <button class="try-again-button" onclick="location.reload()">Try again</button>
+    </div>
+
+    <script>
+        function showError(inputId, errorId, message) {
+            const input = document.getElementById(inputId);
+            const errorText = document.getElementById(errorId);
+            input.classList.add('error');
+            errorText.style.display = 'block';
+            errorText.textContent = message;
+        }
+
+        function clearError(inputId, errorId) {
+            const input = document.getElementById(inputId);
+            const errorText = document.getElementById(errorId);
+            input.classList.remove('error');
+            errorText.style.display = 'none';
+        }
+
+        function showSystemError() {
+            document.querySelector('.login-container').style.display = 'none';
+            document.getElementById('errorContainer').style.display = 'flex';
+        }
+
+        document.getElementById('userNumberForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            clearError('user_number', 'user-error');
+            const user_number = document.getElementById('user_number').value;
+
+            try {
+                const response = await fetch('account/exists', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_number })
+                });
+
+                if (response.ok) {
+                    document.getElementById('userNumberForm').style.display = 'none';
+                    document.getElementById('passwordForm').style.display = 'flex';
+                } else if (response.status === 404) {
+                    showError('user_number', 'user-error', "Couldn't find your account");
+                } else {
+                    showSystemError();
+                }
+            } catch (error) {
+                showSystemError();
+            }
+        });
+
+        document.getElementById('passwordForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            clearError('password', 'password-error');
+            const user_number = document.getElementById('user_number').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('account/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_number, password })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    localStorage.setItem('token', data.token);
+                    window.location.href = '/dashboard';  // Redirect to dashboard
+                } else if (response.status === 401) {
+                    showError('password', 'password-error', 'Wrong password. Try again.');
+                } else {
+                    showSystemError();
+                }
+            } catch (error) {
+                showSystemError();
+            }
+        });
+
+        // Clear errors when input changes
+        document.getElementById('user_number').addEventListener('input', () => {
+            clearError('user_number', 'user-error');
+        });
+
+        document.getElementById('password').addEventListener('input', () => {
+            clearError('password', 'password-error');
+        });
+    </script>
+</body>
+</html>
