@@ -1,3 +1,5 @@
 # Uploads & Database
 /static/uploads/*
 !/static/uploads/default.png
+instance/users.db
+*.db
