@@ -400,63 +400,97 @@
             return `${browser} on ${os}`;
         }
 
-        function formatDate(dateString) {
-            // Convert the UTC date string to Unix timestamp (in milliseconds)
-            const timestamp = new Date(dateString).getTime();
-            const now = Date.now(); // Current Unix timestamp in milliseconds
-            
-            const diffMs = now - timestamp;
-            const diffMins = Math.round(diffMs / (1000 * 60));
-            const diffHours = Math.round(diffMs / (1000 * 60 * 60));
-            const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+        function formatRelativeTime(date) {
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
 
-            if (diffMins < 1) {
+            if (diffInSeconds < 60) {
                 return 'Just now';
-            } else if (diffMins < 60) {
-                return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
-            } else if (diffHours < 24) {
-                return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
-            } else if (diffDays < 7) {
-                return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
-            } else {
-                // Create a date formatter that explicitly uses UTC
-                return new Intl.DateTimeFormat('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    timeZone: 'UTC'
-                }).format(timestamp);
             }
+
+            const diffInMinutes = Math.floor(diffInSeconds / 60);
+            if (diffInMinutes < 60) {
+                return `${diffInMinutes} ${diffInMinutes === 1 ? 'minute' : 'minutes'} ago`;
+            }
+
+            const diffInHours = Math.floor(diffInMinutes / 60);
+            if (diffInHours < 24) {
+                return `${diffInHours} ${diffInHours === 1 ? 'hour' : 'hours'} ago`;
+            }
+
+            const diffInDays = Math.floor(diffInHours / 24);
+            if (diffInDays < 7) {
+                return `${diffInDays} ${diffInDays === 1 ? 'day' : 'days'} ago`;
+            }
+
+            return new Intl.DateTimeFormat('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            }).format(date);
+        }
+
+        function formatDate(dateString) {
+            // Parse the UTC date string and create a local date object
+            const date = new Date(dateString + 'Z'); // Append 'Z' to ensure UTC parsing
+            
+            // Get the exact timestamp for the title attribute
+            const exactTime = new Intl.DateTimeFormat('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+                timeZoneName: 'short'
+            }).format(date);
+            
+            // Get the relative time for display
+            const relativeTime = formatRelativeTime(date);
+            
+            // Return both values to be used in the HTML
+            return {
+                relative: relativeTime,
+                exact: exactTime
+            };
         }
 
         function renderActiveSessions(sessions) {
             const activeSessionsDiv = document.getElementById('activeSessions');
-            activeSessionsDiv.innerHTML = sessions.map(session => `
-                <div class="session-card">
-                    <div class="session-info">
-                        <h4>${parseUserAgent(session.deviceName)}</h4>
-                        <p>${session.location} • Last active ${formatDate(session.lastActive)}</p>
+            activeSessionsDiv.innerHTML = sessions.map(session => {
+                const time = formatDate(session.lastActive);
+                return `
+                    <div class="session-card">
+                        <div class="session-info">
+                            <h4>${parseUserAgent(session.deviceName)}</h4>
+                            <p>${session.location} • Last active <span title="${time.exact}">${time.relative}</span></p>
+                        </div>
+                        <div class="session-actions">
+                            ${session.current ?
+                            '<button disabled>Current Session</button>' :
+                            `<button onclick="endSession('${session.id}')">End Session</button>`
+                            }
+                        </div>
                     </div>
-                    <div class="session-actions">
-                        ${session.current ?
-                    '<button disabled>Current Session</button>' :
-                    `<button onclick="endSession('${session.id}')">End Session</button>`
-                }
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function renderLoginHistory(history) {
             const loginHistoryDiv = document.getElementById('loginHistory');
-            loginHistoryDiv.innerHTML = history.map(login => `
-                <div class="login-record">
-                    <p class="login-time">${formatDate(login.timestamp)}</p>
-                    <p>${parseUserAgent(login.deviceName)} • ${login.location}</p>
-                </div>
-            `).join('');
+            loginHistoryDiv.innerHTML = history.map(login => {
+                const time = formatDate(login.timestamp);
+                return `
+                    <div class="login-record">
+                        <p class="login-time" title="${time.exact}">${time.relative}</p>
+                        <p>${parseUserAgent(login.deviceName)} • ${login.location}</p>
+                    </div>
+                `;
+            }).join('');
         }
 
         // Check if user is logged in

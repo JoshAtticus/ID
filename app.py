@@ -51,6 +51,7 @@ class LoginHistory(db.Model):
     device_name = db.Column(db.String(100))
     location = db.Column(db.String(100))
     timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    action = db.Column(db.String(20), default='login')  # 'login' or 'ended'
 
 @app.route('/account/create', methods=['POST'])
 def create_account():
@@ -112,7 +113,7 @@ def login():
         # Generate token
         token = jwt.encode({
             'user_number': user_number,
-            'exp': current_time + timedelta(hours=1)
+            'exp': current_time + timedelta(hours=744)
         }, app.config['SECRET_KEY'], algorithm='HS256')
         
         # Create new session with explicit timestamp
@@ -247,6 +248,31 @@ def get_recommendations():
     except:
         return jsonify({'message': 'Invalid token'}), 401
 
+# Add function to clean expired sessions
+def remove_expired_sessions():
+    current_time = datetime.now(timezone.utc)
+    try:
+        expired_sessions = Session.query.all()
+        for session in expired_sessions:
+            try:
+                jwt.decode(session.token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            except jwt.ExpiredSignatureError:
+                # Create login history record for expired session
+                login_record = LoginHistory(
+                    user_id=session.user_id,
+                    device_name=session.device_name,
+                    location=session.location,
+                    timestamp=current_time,
+                    action='expired'
+                )
+                db.session.add(login_record)
+                db.session.delete(session)
+        db.session.commit()
+    except Exception as e:
+        print(f"Error cleaning expired sessions: {str(e)}")
+        db.session.rollback()
+
+# Modify get_security_data to clean expired sessions and include action
 @app.route('/account/security', methods=['GET'])
 def get_security_data():
     token = request.headers.get('Authorization')
@@ -254,6 +280,9 @@ def get_security_data():
         return jsonify({'message': 'Token is missing'}), 401
 
     try:
+        # Clean expired sessions first
+        remove_expired_sessions()
+
         # Verify token
         data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         user = User.query.filter_by(user_number=data['user_number']).first()
@@ -269,7 +298,6 @@ def get_security_data():
             'current': session.token == token
         } for session in user.sessions]
 
-        # Fixed: Properly query login history with order_by
         login_history_query = LoginHistory.query.filter_by(user_id=user.id)\
             .order_by(LoginHistory.timestamp.desc())\
             .limit(10).all()
@@ -277,7 +305,8 @@ def get_security_data():
         login_history = [{
             'deviceName': log.device_name,
             'location': log.location,
-            'timestamp': log.timestamp.isoformat()
+            'timestamp': log.timestamp.isoformat(),
+            'action': log.action
         } for log in login_history_query]
 
         return jsonify({
@@ -289,10 +318,10 @@ def get_security_data():
     except jwt.InvalidTokenError:
         return jsonify({'message': 'Invalid token'}), 401
     except Exception as e:
-        # Log the actual error for debugging
         print(f"Security data error: {str(e)}")
         return jsonify({'message': 'Internal server error'}), 500
 
+# Modify end_session route to record the action
 @app.route('/account/end-session', methods=['POST'])
 def end_session():
     token = request.headers.get('Authorization')
@@ -306,6 +335,15 @@ def end_session():
         
         session = Session.query.filter_by(id=session_id, user_id=user.id).first()
         if session:
+            # Record session end in login history
+            login_record = LoginHistory(
+                user_id=user.id,
+                device_name=session.device_name,
+                location=session.location,
+                timestamp=datetime.now(timezone.utc),
+                action='ended'
+            )
+            db.session.add(login_record)
             db.session.delete(session)
             db.session.commit()
             return jsonify({'message': 'Session ended successfully'})
@@ -330,6 +368,12 @@ def dashboard():
 # Create the database tables
 def init_db():
     with app.app_context():
+        # Add new column to existing table
+        with db.engine.connect() as conn:
+            try:
+                conn.execute('ALTER TABLE login_history ADD COLUMN action VARCHAR(20) DEFAULT "login"')
+            except:
+                pass  # Column might already exist
         db.create_all()
 
 if __name__ == '__main__':
