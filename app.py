@@ -42,15 +42,15 @@ class Session(db.Model):
     token = db.Column(db.String(500), nullable=False)
     device_name = db.Column(db.String(100))
     location = db.Column(db.String(100))
-    last_active = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    last_active = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 class LoginHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     device_name = db.Column(db.String(100))
     location = db.Column(db.String(100))
-    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 @app.route('/account/create', methods=['POST'])
 def create_account():
@@ -83,7 +83,7 @@ def create_account():
         return jsonify({'message': 'Email already exists'}), 409
 
     try:
-        dob_date = datetime.datetime.strptime(dob, '%Y-%m-%d').date()
+        dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
         new_user = User(
             user_number=user_number,
             full_name=full_name,
@@ -107,27 +107,32 @@ def login():
     user = User.query.filter_by(user_number=user_number).first()
 
     if user and user.check_password(password):
+        current_time = datetime.now(timezone.utc)  # Get current UTC time
+        
         # Generate token
         token = jwt.encode({
             'user_number': user_number,
-            'exp': datetime.now(timezone.utc) + timedelta(hours=1)
+            'exp': current_time + timedelta(hours=1)
         }, app.config['SECRET_KEY'], algorithm='HS256')
         
-        # Create new session
+        # Create new session with explicit timestamp
         session = Session(
             id=str(uuid.uuid4()),
             user_id=user.id,
             token=token,
             device_name=request.headers.get('User-Agent', 'Unknown Device'),
-            location='Unknown Location'  # You could use IP geolocation here
+            location='Unknown Location',
+            last_active=current_time,
+            created_at=current_time
         )
         db.session.add(session)
         
-        # Record login history
+        # Record login history with explicit timestamp
         login_record = LoginHistory(
             user_id=user.id,
             device_name=request.headers.get('User-Agent', 'Unknown Device'),
-            location='Unknown Location'  # You could use IP geolocation here
+            location='Unknown Location',
+            timestamp=current_time
         )
         db.session.add(login_record)
         
