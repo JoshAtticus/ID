@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta, timezone
 import uuid
 import secrets
+from sqlalchemy import text  # Add this import at the top with other imports
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "your_secret_key"
@@ -26,8 +27,30 @@ OAUTH_SCOPES = {
     "email": "Access your email address",
     "profile_picture": "Access your profile picture",
     "student_number": "Access your student number",
+    "school": "Access your school name"  # Add new scope
 }
 
+ALLOWED_DOMAINS = [
+    "scea.wa.edu.au",
+    "swan.wa.edu.au", 
+    "mundaringcc.wa.edu.au",
+    "ellenbrook.wa.edu.au",
+    "beechboro.wa.edu.au",
+    "kalamundacs.wa.edu.au",
+    "northshore.wa.edu.au",
+    "southernhills.wa.edu.au"
+]
+
+SCHOOL_DOMAINS = {
+    "scea.wa.edu.au": "SCEA",
+    "swan.wa.edu.au": "Swan Christian College",
+    "mundaringcc.wa.edu.au": "Mundaring Christian College",
+    "ellenbrook.wa.edu.au": "Ellenbrook Christian College", 
+    "beechboro.wa.edu.au": "Beechboro Christian School",
+    "kalamundacs.wa.edu.au": "Kalamunda Christian School",
+    "northshore.wa.edu.au": "Northshore Christian Grammar School",
+    "southernhills.wa.edu.au": "Southern Hills Christian College"
+}
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -35,6 +58,7 @@ class User(db.Model):
     full_name = db.Column(db.String(100), nullable=False)
     dob = db.Column(db.Date, nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
+    school = db.Column(db.String(100), nullable=False)  # Add this line
     password_hash = db.Column(db.String(120), nullable=False)
     profile_picture = db.Column(db.String(255))
     sessions = db.relationship("Session", backref="user", lazy=True)
@@ -80,6 +104,7 @@ class OAuthApp(db.Model):
     client_secret = db.Column(db.String(64), nullable=False)
     redirect_uri = db.Column(db.String(500), nullable=False)
     website = db.Column(db.String(500))
+    verified = db.Column(db.Boolean, default=False)
     created_at = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -117,8 +142,8 @@ def create_account():
         return jsonify({"message": "User number must be 6 digits starting with 1"}), 400
 
     # Validate email format
-    if not email or not email.endswith("@mundaringcc.wa.edu.au"):
-        return jsonify({"message": "Invalid email format"}), 400
+    if not email or not any(email.endswith(f"@{domain}") for domain in ALLOWED_DOMAINS):
+        return jsonify({"message": "Invalid email domain. Must be a SCEA school email address"}), 400
 
     email_prefix = email.split("@")[0]
     if not "." in email_prefix or not all(
@@ -135,10 +160,21 @@ def create_account():
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email already exists"}), 409
 
+    # Determine school from email domain
+    email_domain = email.split('@')[1]
+    school = SCHOOL_DOMAINS.get(email_domain)
+    
+    if not school:
+        return jsonify({"message": "Invalid school email domain"}), 400
+
     try:
         dob_date = datetime.strptime(dob, "%Y-%m-%d").date()
         new_user = User(
-            user_number=user_number, full_name=full_name, dob=dob_date, email=email
+            user_number=user_number,
+            full_name=full_name,
+            dob=dob_date,
+            email=email,
+            school=school  # Add school field
         )
         new_user.set_password(password)
         db.session.add(new_user)
@@ -237,6 +273,7 @@ def get_user_details():
                 "email": user.email,
                 "dob": user.dob.strftime("%Y-%m-%d"),
                 "profile_picture": user.profile_picture,
+                "school": user.school
             }
         )
     except:
@@ -430,12 +467,25 @@ def oauth_authorize():
     scope = request.args.get("scope", "")
 
     app = OAuthApp.query.filter_by(client_id=client_id).first()
-    if not app or app.redirect_uri != redirect_uri:
-        return "Invalid client", 400
+    
+    if not app:
+        return jsonify({
+            "error": "invalid_client",
+            "details": "No application found with this client ID"
+        }), 400
+        
+    if app.redirect_uri != redirect_uri:
+        return jsonify({
+            "error": "invalid_redirect_uri",
+            "details": f"Expected {app.redirect_uri}, got {redirect_uri}"
+        }), 400
 
     requested_scopes = scope.split(",")
     if not all(s in OAUTH_SCOPES for s in requested_scopes):
-        return "Invalid scope", 400
+        return jsonify({
+            "error": "invalid_scope",
+            "details": f"Invalid scopes: {[s for s in requested_scopes if s not in OAUTH_SCOPES]}"
+        }), 400
 
     return send_from_directory("static", "authorize.html")
 
@@ -451,6 +501,7 @@ def get_oauth_app_info():
 
     return jsonify({
         "name": oauth_app.name,
+        "verified": oauth_app.verified,
         "scope_descriptions": OAUTH_SCOPES
     })
     
@@ -481,15 +532,27 @@ def oauth_approve():
         if not all(s in OAUTH_SCOPES for s in requested_scopes):
             return jsonify({"error": "invalid_scope"}), 400
 
-        # Create authorization
-        auth = OAuthAuthorization(
+        # Check for existing authorization
+        existing_auth = OAuthAuthorization.query.filter_by(
             user_id=user.id,
-            app_id=oauth_app.id,
-            scopes=scope,
-            access_token=secrets.token_urlsafe(48)
-        )
-        
-        db.session.add(auth)
+            app_id=oauth_app.id
+        ).first()
+
+        if existing_auth:
+            # Update existing authorization
+            existing_auth.last_used = datetime.now(timezone.utc)
+            existing_auth.scopes = scope  # Update scopes in case they changed
+            auth = existing_auth
+        else:
+            # Create new authorization
+            auth = OAuthAuthorization(
+                user_id=user.id,
+                app_id=oauth_app.id,
+                scopes=scope,
+                access_token=secrets.token_urlsafe(48)
+            )
+            db.session.add(auth)
+
         db.session.commit()
 
         return jsonify({
@@ -553,10 +616,15 @@ def oauth_userinfo():
         response["dob"] = user.dob.strftime("%Y-%m-%d")
     if "email" in scopes:
         response["email"] = user.email
-    if "profile_picture" in scopes and user.profile_picture:
-        response["profile_picture"] = f"/static/uploads/{user.profile_picture}"
+    if "profile_picture" in scopes:
+        if user.profile_picture:
+            response["profile_picture"] = f"http://localhost:5002/static/uploads/{user.profile_picture}"
+        else:
+            response["profile_picture"] = "http://localhost:5002/static/uploads/default.png"
     if "student_number" in scopes:
         response["student_number"] = user.user_number
+    if "school" in scopes:
+        response["school"] = user.school
 
     return jsonify(response)
 
@@ -585,6 +653,7 @@ def get_authorized_apps():
                         "id": auth.id,
                         "name": oauth_app.name,
                         "website": oauth_app.website,
+                        "verified": oauth_app.verified,
                         "scopes": auth.scopes.split(","),
                         "last_used": (
                             auth.last_used.isoformat() if auth.last_used else None
@@ -660,6 +729,7 @@ def get_developer_apps():
                         "client_id": app.client_id,
                         "redirect_uri": app.redirect_uri,
                         "website": app.website,
+                        "verified": app.verified,
                         "created_at": app.created_at.isoformat(),
                     }
                     for app in apps
@@ -749,15 +819,27 @@ def authorize_oauth_app():
 # Create the database tables
 def init_db():
     with app.app_context():
-        # Add new column to existing table
+        # Create tables first to ensure oauth_app exists
+        db.create_all()
+        
+        # Then check and add columns if needed
         with db.engine.connect() as conn:
             try:
-                conn.execute(
-                    'ALTER TABLE login_history ADD COLUMN action VARCHAR(20) DEFAULT "login"'
-                )
-            except:
-                pass  # Column might already exist
-        db.create_all()
+                # Get existing columns for oauth_app table
+                result = conn.execute(text('PRAGMA table_info(oauth_app)'))
+                oauth_app_columns = [col[1] for col in result.fetchall()]
+                
+                # Only add verified column if it doesn't exist
+                if 'verified' not in oauth_app_columns:
+                    print("Adding 'verified' column to oauth_app table...")
+                    conn.execute(text('ALTER TABLE oauth_app ADD COLUMN verified BOOLEAN DEFAULT FALSE'))
+                    conn.commit()
+                    print("Successfully added 'verified' column")
+                
+            except Exception as e:
+                print(f"Error during database migration: {str(e)}")
+                conn.rollback()
+                raise
 
 
 if __name__ == "__main__":

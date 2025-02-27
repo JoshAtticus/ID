@@ -260,7 +260,7 @@
             <div class="step" data-step="3">
                 <div class="input-group">
                     <input type="email" id="email" name="email" required placeholder=" ">
-                    <label for="email">School Email (firstname.lastname@mundaringcc.wa.edu.au)</label>
+                    <label for="email">School Email (firstname.lastname@school.wa.edu.au)</label>
                     <div class="error-text" id="email-error"></div>
                 </div>
             </div>
@@ -359,7 +359,13 @@
                     return fullName.checkValidity() && dob.checkValidity();
                 case 3:
                     const email = document.getElementById('email');
-                    return email.checkValidity();
+                    const emailValue = email.value;
+                    const emailPrefix = emailValue.split('@')[0];
+                    const hasValidFormat = emailPrefix.includes('.') && 
+                                          emailPrefix.split('.').length === 2 &&
+                                          emailPrefix.split('.').every(part => /^[a-zA-Z]+$/.test(part));
+                    const isValidDomain = ALLOWED_DOMAINS.some(domain => emailValue.toLowerCase().endsWith('@' + domain));
+                    return hasValidFormat && isValidDomain;
                 case 4:
                     const password = document.getElementById('password');
                     const confirmPassword = document.getElementById('confirm_password');
@@ -425,6 +431,44 @@
                 }
             } catch (error) {
                 console.error('Error:', error);
+            }
+        });
+
+        const ALLOWED_DOMAINS = [
+            "scea.wa.edu.au",
+            "swan.wa.edu.au",
+            "mundaringcc.wa.edu.au",
+            "ellenbrook.wa.edu.au",
+            "beechboro.wa.edu.au",
+            "kalamundacs.wa.edu.au",
+            "northshore.wa.edu.au",
+            "southernhills.wa.edu.au"
+        ];
+
+        document.getElementById('email').addEventListener('input', function(e) {
+            const email = e.target.value;
+            const errorElement = document.getElementById('email-error');
+            
+            // Check if email follows firstname.lastname format
+            const emailPrefix = email.split('@')[0];
+            const hasValidFormat = emailPrefix.includes('.') && 
+                                  emailPrefix.split('.').length === 2 &&
+                                  emailPrefix.split('.').every(part => /^[a-zA-Z]+$/.test(part));
+
+            // Check if domain is allowed
+            const isValidDomain = ALLOWED_DOMAINS.some(domain => email.toLowerCase().endsWith('@' + domain));
+
+            if (!hasValidFormat) {
+                errorElement.textContent = 'Email must be in firstname.lastname format';
+                errorElement.style.display = 'block';
+                e.target.classList.add('error');
+            } else if (!isValidDomain) {
+                errorElement.textContent = 'Please use your SCEA school email address';
+                errorElement.style.display = 'block';
+                e.target.classList.add('error');
+            } else {
+                errorElement.style.display = 'none';
+                e.target.classList.remove('error');
             }
         });
 
