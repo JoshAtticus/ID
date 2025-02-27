@@ -309,6 +309,83 @@
             color: #202124;
             font-weight: 500;
         }
+
+        .app-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .app-info {
+            flex-grow: 1;
+        }
+
+        .app-info h4 {
+            margin: 0 0 8px 0;
+            color: #202124;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .app-info p {
+            margin: 0 0 4px 0;
+            color: #5f6368;
+            font-size: 14px;
+        }
+
+        .app-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .app-link {
+            color: #1a73e8;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .app-link:hover {
+            text-decoration: underline;
+        }
+
+        .revoke-button {
+            background: transparent;
+            color: #dc3545;
+            border: 1px solid #dc3545;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .revoke-button:hover {
+            background: #dc3545;
+            color: white;
+        }
+
+        .scope-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .scope-tag {
+            background: #f1f3f4;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            color: #5f6368;
+        }
     </style>
 </head>
 
@@ -369,9 +446,12 @@
             </div>
 
             <div class="tab-content" id="apps">
-                <div class="recommendations-placeholder">
-                    <h3>No authorised apps</h3>
-                    <p>You haven't authorised any applications yet</p>
+                <div id="apps-list">
+                    <!-- Apps will be loaded here -->
+                </div>
+                <div id="no-apps" class="recommendations-placeholder" style="display: none;">
+                    <h3>No authorized apps</h3>
+                    <p>You haven't authorized any applications yet</p>
                 </div>
             </div>
 
@@ -690,6 +770,73 @@
 
         // Add event listener for security tab
         document.querySelector('[data-tab="security"]').addEventListener('click', fetchSecurityData);
+
+        async function loadAuthorizedApps() {
+            try {
+                const response = await fetch('/account/authorized-apps', {
+                    headers: {
+                        'Authorization': token
+                    }
+                });
+                
+                const data = await response.json();
+                const appsList = document.getElementById('apps-list');
+                const noApps = document.getElementById('no-apps');
+                
+                if (data.apps.length === 0) {
+                    appsList.style.display = 'none';
+                    noApps.style.display = 'block';
+                    return;
+                }
+                
+                appsList.style.display = 'block';
+                noApps.style.display = 'none';
+                
+                appsList.innerHTML = data.apps.map(app => `
+                    <div class="app-card">
+                        <div class="app-info">
+                            <h4>${app.name}</h4>
+                            <p>Last used: ${app.last_used ? formatDate(app.last_used).relative : 'Never'}</p>
+                            <div class="scope-tags">
+                                ${app.scopes.map(scope => `
+                                    <span class="scope-tag">${scope}</span>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <div class="app-actions">
+                            ${app.website ? `<a href="${app.website}" target="_blank" class="app-link">Visit Site</a>` : ''}
+                            <button onclick="revokeApp('${app.id}')" class="revoke-button">Revoke Access</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading authorized apps:', error);
+            }
+        }
+
+        async function revokeApp(appId) {
+            if (!confirm('Are you sure you want to revoke access for this application?')) {
+                return;
+            }
+            
+            try {
+                await fetch('/account/revoke-app', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ app_id: appId })
+                });
+                
+                loadAuthorizedApps();
+            } catch (error) {
+                console.error('Error revoking app:', error);
+            }
+        }
+
+        // Add event listener for apps tab
+        document.querySelector('[data-tab="apps"]').addEventListener('click', loadAuthorizedApps);
     </script>
 </body>
 

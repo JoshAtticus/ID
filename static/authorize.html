@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorize Application - SCEAID</title>
+    <style>
+        body {
+            font-family: 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #f1f3f4;
+        }
+
+        .login-container {
+            width: 448px;
+            padding: 48px 40px 36px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+        }
+
+        h2 {
+            color: #202124;
+            font-size: 24px;
+            font-weight: 400;
+            margin: 0 0 24px;
+        }
+
+        #app-info {
+            margin-bottom: 24px;
+        }
+
+        #app-info p {
+            color: #5f6368;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .scope-list h3 {
+            color: #202124;
+            font-size: 16px;
+            font-weight: 500;
+            margin: 0 0 16px;
+        }
+
+        .scope-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .scope-item input[type="checkbox"] {
+            margin-right: 12px;
+        }
+
+        .scope-item label {
+            color: #5f6368;
+            font-size: 14px;
+        }
+
+        .buttons-container {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        button {
+            padding: 8px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        button.primary {
+            background: #1a73e8;
+            color: white;
+        }
+
+        button.primary:hover {
+            background: #1557b0;
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+        }
+
+        button.secondary {
+            background: transparent;
+            color: #5f6368;
+        }
+
+        button.secondary:hover {
+            background: #f1f3f4;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <h2>Authorize Application</h2>
+        <div id="app-info">
+            <p>The application <strong id="app-name"></strong> is requesting access to your account.</p>
+        </div>
+        <div class="scope-list">
+            <h3>This app will be able to:</h3>
+            <div id="scope-items"></div>
+        </div>
+
+        <div class="buttons-container">
+            <button type="button" onclick="window.history.back()" class="secondary">Cancel</button>
+            <button type="button" onclick="authorize()" class="primary">Authorize</button>
+        </div>
+    </div>
+
+    <script>
+        async function loadAppInfo() {
+            const params = new URLSearchParams(window.location.search);
+            const response = await fetch(`/oauth/app-info?client_id=${params.get('client_id')}`);
+            const app = await response.json();
+
+            document.getElementById('app-name').textContent = app.name;
+
+            const scopeItems = document.getElementById('scope-items');
+            const scopes = params.get('scope').split(',');
+
+            scopes.forEach(scope => {
+                const div = document.createElement('div');
+                div.className = 'scope-item';
+                div.innerHTML = `
+                    <input type="checkbox" id="${scope}" checked disabled>
+                    <label for="${scope}">${app.scope_descriptions[scope]}</label>
+                `;
+                scopeItems.appendChild(div);
+            });
+        }
+
+        async function authorize() {
+            const params = new URLSearchParams(window.location.search);
+            const token = localStorage.getItem('token');
+            
+            try {
+                const response = await fetch('/oauth/approve', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token  // Make sure the token exists and is sent as-is
+                    },
+                    body: JSON.stringify({
+                        client_id: params.get('client_id'),
+                        scope: params.get('scope')
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Authorization failed');
+                }
+
+                const data = await response.json();
+                if (data.code) {
+                    window.location.href = `${data.redirect_uri}?code=${data.code}`;
+                }
+            } catch (error) {
+                console.error('Authorization error:', error);
+                alert('Authorization failed. Please try again or login.');
+                window.location.href = '/'; // Redirect to login if token is invalid
+            }
+        }
+
+        loadAppInfo();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Dashboard - SCEAID</title>
+    <style>
+        body {
+            font-family: 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f1f3f4;
+        }
+
+        .dashboard-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: #fff;
+            padding: 24px 0;
+            border-right: 1px solid #dadce0;
+        }
+
+        .nav-header {
+            padding: 0 24px;
+            margin-bottom: 24px;
+        }
+
+        .nav-header h2 {
+            color: #202124;
+            font-size: 22px;
+            font-weight: 400;
+            margin: 16px 0 0;
+        }
+
+        .nav-links {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .nav-links a {
+            display: block;
+            padding: 12px 24px;
+            color: #5f6368;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .nav-links a.active {
+            color: #1a73e8;
+            background: #e8f0fe;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 24px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            color: #202124;
+            font-size: 22px;
+            font-weight: 400;
+            margin: 0;
+        }
+
+        .primary-button {
+            background: #1a73e8;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .primary-button:hover {
+            background: #1557b0;
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+        }
+
+        .app-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+        }
+
+        .app-card h3 {
+            color: #202124;
+            font-size: 18px;
+            font-weight: 400;
+            margin: 0 0 16px;
+        }
+
+        .secret-box {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 12px 0;
+            color: #202124;
+            border: 1px solid #dadce0;
+        }
+
+        .create-app-form {
+            background: #fff;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 500px;
+            margin: 20px auto;
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            color: #5f6368;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #202124;
+            box-sizing: border-box;
+        }
+
+        .input-group input:focus {
+            border-color: #1a73e8;
+            outline: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <nav class="sidebar">
+            <div class="nav-header">
+                <h2>Developer Dashboard</h2>
+            </div>
+            <ul class="nav-links">
+                <li><a href="/dashboard">← Back to Account Dashboard</a></li>
+                <li><a href="#" class="active">OAuth Apps</a></li>
+            </ul>
+        </nav>
+
+        <main class="main-content">
+            <div class="header">
+                <h1>OAuth Applications</h1>
+                <button id="createAppBtn" class="primary-button">Create New App</button>
+            </div>
+
+            <div id="createAppForm" class="create-app-form" style="display: none;">
+                <h2>Create New OAuth App</h2>
+                <form id="newAppForm">
+                    <div class="input-group">
+                        <label for="appName">Application Name</label>
+                        <input type="text" id="appName" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="redirectUri">Redirect URI</label>
+                        <input type="url" id="redirectUri" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="website">Website (optional)</label>
+                        <input type="url" id="website">
+                    </div>
+                    <button type="submit" class="primary-button">Create Application</button>
+                </form>
+            </div>
+
+            <div id="appsList"></div>
+        </main>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/';
+        }
+
+        function loadApps() {
+            fetch('/account/developer/apps', {
+                headers: {
+                    'Authorization': token
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const appsList = document.getElementById('appsList');
+                    appsList.innerHTML = data.apps.map(app => `
+                    <div class="app-card">
+                        <h3>${app.name}</h3>
+                        <p><strong>Client ID:</strong></p>
+                        <div class="secret-box">${app.client_id}</div>
+                        <p><strong>Redirect URI:</strong> ${app.redirect_uri}</p>
+                        ${app.website ? `<p><strong>Website:</strong> <a href="${app.website}" target="_blank">${app.website}</a></p>` : ''}
+                        <p><strong>Created:</strong> ${new Date(app.created_at).toLocaleDateString()}</p>
+                    </div>
+                `).join('');
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        document.getElementById('createAppBtn').addEventListener('click', () => {
+            document.getElementById('createAppForm').style.display = 'block';
+        });
+
+        document.getElementById('newAppForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const appData = {
+                name: document.getElementById('appName').value,
+                redirect_uri: document.getElementById('redirectUri').value,
+                website: document.getElementById('website').value || null
+            };
+
+            try {
+                const response = await fetch('/account/developer/apps', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(appData)
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert(`App created successfully!\n\nClient Secret: ${data.app.client_secret}\n\nPlease save this secret as it won't be shown again.`);
+                    document.getElementById('createAppForm').style.display = 'none';
+                    document.getElementById('newAppForm').reset();
+                    loadApps();
+                } else {
+                    alert(data.message || 'Error creating app');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error creating app');
+            }
+        });
+
+        // Load apps when page loads
+        loadApps();
+    </script>
+</body>
+
+</html>
