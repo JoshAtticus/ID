@@ -968,17 +968,44 @@ def authorize_oauth_app():
 # Create the database tables
 def init_db():
     with app.app_context():
-        # Create tables first to ensure oauth_app exists
+        # Create tables first
         db.create_all()
         
         # Then check and add columns if needed
         with db.engine.connect() as conn:
             try:
+                # Get existing columns for user table
+                result = conn.execute(text('PRAGMA table_info(user)'))
+                user_columns = [col[1] for col in result.fetchall()]
+                
+                # Add school column if it doesn't exist
+                if 'school' not in user_columns:
+                    print("Adding 'school' column to user table...")
+                    conn.execute(text('ALTER TABLE user ADD COLUMN school VARCHAR(100)'))
+                    
+                    # Update existing records with default school based on email domain
+                    conn.execute(text('''
+                        UPDATE user 
+                        SET school = CASE
+                            WHEN email LIKE '%@swan.wa.edu.au' THEN 'Swan Christian College'
+                            WHEN email LIKE '%@mundaringcc.wa.edu.au' THEN 'Mundaring Christian College'
+                            WHEN email LIKE '%@ellenbrook.wa.edu.au' THEN 'Ellenbrook Christian College'
+                            WHEN email LIKE '%@beechboro.wa.edu.au' THEN 'Beechboro Christian School'
+                            WHEN email LIKE '%@kalamundacs.wa.edu.au' THEN 'Kalamunda Christian School'
+                            WHEN email LIKE '%@northshore.wa.edu.au' THEN 'Northshore Christian Grammar School'
+                            WHEN email LIKE '%@southernhills.wa.edu.au' THEN 'Southern Hills Christian College'
+                            WHEN email LIKE '%@scea.wa.edu.au' THEN 'SCEA'
+                            ELSE 'Unknown School'
+                        END
+                    '''))
+                    conn.commit()
+                    print("Successfully added 'school' column and updated existing records")
+                
                 # Get existing columns for oauth_app table
                 result = conn.execute(text('PRAGMA table_info(oauth_app)'))
                 oauth_app_columns = [col[1] for col in result.fetchall()]
                 
-                # Only add verified column if it doesn't exist
+                # Add verified column if it doesn't exist
                 if 'verified' not in oauth_app_columns:
                     print("Adding 'verified' column to oauth_app table...")
                     conn.execute(text('ALTER TABLE oauth_app ADD COLUMN verified BOOLEAN DEFAULT FALSE'))
@@ -989,7 +1016,6 @@ def init_db():
                 print(f"Error during database migration: {str(e)}")
                 conn.rollback()
                 raise
-
 
 if __name__ == "__main__":
     init_db()  # Initialize the database
