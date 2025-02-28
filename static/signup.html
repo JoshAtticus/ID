@@ -144,45 +144,259 @@
             font-weight: 500;
             cursor: pointer;
         }
+
+        .step {
+            display: none;
+        }
+
+        .step.active {
+            display: block;
+        }
+
+        .progress-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .progress-step {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #e8f0fe;
+            border: 2px solid #1a73e8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #1a73e8;
+            z-index: 2;
+        }
+
+        .progress-step.active {
+            background: #1a73e8;
+            color: white;
+        }
+
+        .progress-step.completed {
+            background: #1a73e8;
+            color: white;
+        }
+
+        .progress-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            height: 2px;
+            background: #1a73e8;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .review-item {
+            text-align: left;
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .review-label {
+            font-size: 12px;
+            color: #5f6368;
+        }
+
+        .review-value {
+            font-size: 16px;
+            color: #202124;
+        }
+
+        .buttons-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 24px;
+        }
     </style>
 </head>
 <body>
     <div class="login-container">
         <h2>Create Account</h2>
+        <div class="progress-bar">
+            <div class="progress-line"></div>
+            <div class="progress-step active" data-step="1">1</div>
+            <div class="progress-step" data-step="2">2</div>
+            <div class="progress-step" data-step="3">3</div>
+            <div class="progress-step" data-step="4">4</div>
+        </div>
+
         <form id="signupForm">
-            <div class="input-group">
-                <input type="text" id="user_number" name="user_number" required placeholder=" " pattern="1[0-9]{5}">
-                <label for="user_number">User Number (6 digits starting with 1)</label>
-                <div class="error-text" id="user-error"></div>
+            <!-- Step 1: Student Number -->
+            <div class="step active" data-step="1">
+                <p style="color: #5f6368; margin-bottom: 20px;">Please enter your student number, which can be found on the back of your Student SmartRider card.</p>
+                <div class="input-group">
+                    <input type="text" id="user_number" name="user_number" required placeholder=" " pattern="1[0-9]{5}">
+                    <label for="user_number">Student Number</label>
+                    <div class="error-text" id="user-error"></div>
+                </div>
             </div>
-            <div class="input-group">
-                <input type="text" id="full_name" name="full_name" required placeholder=" ">
-                <label for="full_name">Full Name</label>
-                <div class="error-text" id="name-error"></div>
+
+            <!-- Step 2: Name and DOB -->
+            <div class="step" data-step="2">
+                <div class="input-group">
+                    <input type="text" id="full_name" name="full_name" required placeholder=" ">
+                    <label for="full_name">Full Name</label>
+                    <div class="error-text" id="name-error"></div>
+                </div>
+                <div class="input-group">
+                    <input type="date" id="dob" name="dob" required placeholder=" ">
+                    <label for="dob">Date of Birth</label>
+                    <div class="error-text" id="dob-error"></div>
+                </div>
             </div>
-            <div class="input-group">
-                <input type="date" id="dob" name="dob" required placeholder=" ">
-                <label for="dob">Date of Birth</label>
-                <div class="error-text" id="dob-error"></div>
+
+            <!-- Step 3: Email -->
+            <div class="step" data-step="3">
+                <div class="input-group">
+                    <input type="email" id="email" name="email" required placeholder=" ">
+                    <label for="email">School Email (firstname.lastname@school.wa.edu.au)</label>
+                    <div class="error-text" id="email-error"></div>
+                </div>
             </div>
-            <div class="input-group">
-                <input type="email" id="email" name="email" required placeholder=" ">
-                <label for="email">School Email (firstname.lastname@mundaringcc.wa.edu.au)</label>
-                <div class="error-text" id="email-error"></div>
+
+            <!-- Step 4: Password -->
+            <div class="step" data-step="4">
+                <div class="input-group">
+                    <input type="password" id="password" name="password" required placeholder=" ">
+                    <label for="password">Create password</label>
+                    <div class="error-text" id="password-error"></div>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="confirm_password" name="confirm_password" required placeholder=" ">
+                    <label for="confirm_password">Confirm password</label>
+                    <div class="error-text" id="confirm-password-error"></div>
+                </div>
             </div>
-            <div class="input-group">
-                <input type="password" id="password" name="password" required placeholder=" ">
-                <label for="password">Create password</label>
-                <div class="error-text" id="password-error"></div>
+
+            <!-- Review Step -->
+            <div class="step" data-step="5">
+                <h3 style="margin-bottom: 20px;">Review Your Information</h3>
+                <div class="review-item">
+                    <div class="review-label">Student Number</div>
+                    <div class="review-value" id="review-user-number"></div>
+                </div>
+                <div class="review-item">
+                    <div class="review-label">Full Name</div>
+                    <div class="review-value" id="review-full-name"></div>
+                </div>
+                <div class="review-item">
+                    <div class="review-label">Date of Birth</div>
+                    <div class="review-value" id="review-dob"></div>
+                </div>
+                <div class="review-item">
+                    <div class="review-label">School Email</div>
+                    <div class="review-value" id="review-email"></div>
+                </div>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <a href="/" style="color: #1a73e8; text-decoration: none;">I have an account</a>
-                <button type="submit">Create Account</button>
+
+            <div class="buttons-container">
+                <button type="button" id="prevBtn" style="display: none;">Back</button>
+                <button type="button" id="nextBtn">Next</button>
+                <button type="submit" id="submitBtn" style="display: none;">Create Account</button>
             </div>
         </form>
+
+        <div style="margin-top: 20px;">
+            <a href="/" style="color: #1a73e8; text-decoration: none;">I have an account</a>
+        </div>
     </div>
 
     <script>
+        let currentStep = 1;
+        const totalSteps = 5;
+
+        function updateProgressBar() {
+            const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
+            document.querySelector('.progress-line').style.width = `${progress}%`;
+            
+            document.querySelectorAll('.progress-step').forEach((step, index) => {
+                if (index + 1 < currentStep) {
+                    step.classList.add('completed');
+                    step.classList.remove('active');
+                } else if (index + 1 === currentStep) {
+                    step.classList.add('active');
+                    step.classList.remove('completed');
+                } else {
+                    step.classList.remove('active', 'completed');
+                }
+            });
+        }
+
+        function showStep(step) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.querySelector(`.step[data-step="${step}"]`).classList.add('active');
+            
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            prevBtn.style.display = step === 1 ? 'none' : 'block';
+            nextBtn.style.display = step === totalSteps ? 'none' : 'block';
+            submitBtn.style.display = step === totalSteps ? 'block' : 'none';
+
+            updateProgressBar();
+        }
+
+        function validateStep(step) {
+            switch(step) {
+                case 1:
+                    const userNumber = document.getElementById('user_number');
+                    return userNumber.checkValidity();
+                case 2:
+                    const fullName = document.getElementById('full_name');
+                    const dob = document.getElementById('dob');
+                    return fullName.checkValidity() && dob.checkValidity();
+                case 3:
+                    const email = document.getElementById('email');
+                    const emailValue = email.value;
+                    const emailPrefix = emailValue.split('@')[0];
+                    const hasValidFormat = emailPrefix.includes('.') && 
+                                          emailPrefix.split('.').length === 2 &&
+                                          emailPrefix.split('.').every(part => /^[a-zA-Z]+$/.test(part));
+                    const isValidDomain = ALLOWED_DOMAINS.some(domain => emailValue.toLowerCase().endsWith('@' + domain));
+                    return hasValidFormat && isValidDomain;
+                case 4:
+                    const password = document.getElementById('password');
+                    const confirmPassword = document.getElementById('confirm_password');
+                    return password.value === confirmPassword.value && password.checkValidity();
+                default:
+                    return true;
+            }
+        }
+
+        function updateReview() {
+            document.getElementById('review-user-number').textContent = document.getElementById('user_number').value;
+            document.getElementById('review-full-name').textContent = document.getElementById('full_name').value;
+            document.getElementById('review-dob').textContent = document.getElementById('dob').value;
+            document.getElementById('review-email').textContent = document.getElementById('email').value;
+        }
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (validateStep(currentStep)) {
+                currentStep++;
+                showStep(currentStep);
+                if (currentStep === totalSteps) {
+                    updateReview();
+                }
+            }
+        });
+
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            currentStep--;
+            showStep(currentStep);
+        });
+
         document.getElementById('signupForm').addEventListener('submit', async function(event) {
             event.preventDefault();
             const user_number = document.getElementById('user_number').value;
@@ -219,6 +433,47 @@
                 console.error('Error:', error);
             }
         });
+
+        const ALLOWED_DOMAINS = [
+            "scea.wa.edu.au",
+            "swan.wa.edu.au",
+            "mundaringcc.wa.edu.au",
+            "ellenbrook.wa.edu.au",
+            "beechboro.wa.edu.au",
+            "kalamundacs.wa.edu.au",
+            "northshore.wa.edu.au",
+            "southernhills.wa.edu.au"
+        ];
+
+        document.getElementById('email').addEventListener('input', function(e) {
+            const email = e.target.value;
+            const errorElement = document.getElementById('email-error');
+            
+            // Check if email follows firstname.lastname format
+            const emailPrefix = email.split('@')[0];
+            const hasValidFormat = emailPrefix.includes('.') && 
+                                  emailPrefix.split('.').length === 2 &&
+                                  emailPrefix.split('.').every(part => /^[a-zA-Z]+$/.test(part));
+
+            // Check if domain is allowed
+            const isValidDomain = ALLOWED_DOMAINS.some(domain => email.toLowerCase().endsWith('@' + domain));
+
+            if (!hasValidFormat) {
+                errorElement.textContent = 'Email must be in firstname.lastname format';
+                errorElement.style.display = 'block';
+                e.target.classList.add('error');
+            } else if (!isValidDomain) {
+                errorElement.textContent = 'Please use your SCEA school email address';
+                errorElement.style.display = 'block';
+                e.target.classList.add('error');
+            } else {
+                errorElement.style.display = 'none';
+                e.target.classList.remove('error');
+            }
+        });
+
+        // Initialize the form
+        showStep(1);
     </script>
 </body>
 </html>

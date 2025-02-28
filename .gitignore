@@ -3,3 +3,11 @@
 !/static/uploads/default.png
 instance/users.db
 *.db
+.env
+
+# Node
+node_modules
+package-lock.json
+
+# macOS
+.DS_Store
