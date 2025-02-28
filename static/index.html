@@ -244,7 +244,15 @@
                 const data = await response.json();
                 if (response.ok) {
                     localStorage.setItem('token', data.token);
-                    window.location.href = '/dashboard';  // Redirect to dashboard
+                    
+                    // Check if there's a pending OAuth redirect
+                    const oauthRedirect = localStorage.getItem('oauth_redirect');
+                    if (oauthRedirect) {
+                        localStorage.removeItem('oauth_redirect'); // Clear the stored redirect
+                        window.location.href = oauthRedirect; // Redirect to OAuth screen
+                    } else {
+                        window.location.href = '/dashboard'; // Normal dashboard redirect
+                    }
                 } else if (response.status === 401) {
                     showError('password', 'password-error', 'Wrong password. Try again.');
                 } else {

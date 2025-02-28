@@ -187,7 +187,24 @@
     </div>
 
     <script>
+        // Add this function at the start of the script section
+        function checkLoginAndRedirect() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                // Save current URL to localStorage to redirect back after login
+                localStorage.setItem('oauth_redirect', window.location.href);
+                window.location.href = '/';
+                return false;
+            }
+            return true;
+        }
+
+        // Modify the loadAppInfo function to check login first
         async function loadAppInfo() {
+            if (!checkLoginAndRedirect()) {
+                return;
+            }
+
             const params = new URLSearchParams(window.location.search);
             const response = await fetch(`/oauth/app-info?client_id=${params.get('client_id')}`);
             const app = await response.json();
@@ -223,7 +240,12 @@
             });
         }
 
+        // Modify the authorize function to check login first
         async function authorize() {
+            if (!checkLoginAndRedirect()) {
+                return;
+            }
+
             const params = new URLSearchParams(window.location.search);
             const token = localStorage.getItem('token');
             
