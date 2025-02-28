@@ -6,6 +6,7 @@ import os
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta, timezone
 import uuid
+import pathlib
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -13,6 +14,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['COMMON_PASSWORDS_FILE'] = 'common_passwords.txt'
 
 db = SQLAlchemy(app)
 
@@ -52,6 +54,76 @@ class LoginHistory(db.Model):
     location = db.Column(db.String(100))
     timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     action = db.Column(db.String(20), default='login')  # 'login' or 'ended'
+
+# Add this utility function after the model definitions
+def update_session_activity(token):
+    """Update last_active timestamp for the session associated with the token"""
+    try:
+        session = Session.query.filter_by(token=token).first()
+        if session:
+            session.last_active = datetime.now(timezone.utc)
+            db.session.commit()
+    except Exception as e:
+        print(f"Error updating session activity: {str(e)}")
+        db.session.rollback()
+        
+def calculate_security_score(user, sessions):
+    score = 10.0
+    reasons = []
+    
+    # Check number of active sessions
+    session_count = len(sessions)
+    if session_count > 3:
+        deduction = min(3, (session_count - 3)) * 1.5
+        score -= deduction
+        reasons.append({
+            'reason': f'You have {session_count} active sessions',
+            'impact': f'-{deduction:.1f}',
+            'action': 'review_sessions',
+            'description': 'Having too many active sessions increases security risk'
+        })
+    
+    # Check for inactive sessions (not used in last 7 days)
+    current_time = datetime.now(timezone.utc)
+    inactive_sessions = [s for s in sessions if s.last_active and (current_time - s.last_active.replace(tzinfo=timezone.utc)).days >= 7]
+    if inactive_sessions:
+        deduction = len(inactive_sessions) * 1.0
+        score -= deduction
+        reasons.append({
+            'reason': f'{len(inactive_sessions)} inactive device(s) still signed in',
+            'impact': f'-{deduction:.1f}',
+            'action': 'end_inactive_sessions',
+            'description': 'Consider ending sessions on devices you haven\'t used recently'
+        })
+    
+    # Add password check
+    if is_common_password(user.password_hash):
+        score -= 10.0
+        reasons.append({
+            'reason': 'Using a common password',
+            'impact': '-10.0',
+            'action': 'change_password',
+            'description': 'Your password is one of the most commonly used passwords. Change it immediately!'
+        })
+    
+    return max(0, round(score, 1)), reasons
+
+# Add this function after other utility functions
+def is_common_password(password):
+    """Check if password is in the common passwords list"""
+    try:
+        passwords_file = pathlib.Path(app.config['COMMON_PASSWORDS_FILE'])
+        if not passwords_file.exists():
+            # Create file with some example common passwords if it doesn't exist
+            with open(passwords_file, 'w') as f:
+                f.write('password\n123456\nadmin\nqwerty\n12345678\n')
+        
+        with open(passwords_file, 'r') as f:
+            common_passwords = set(line.strip().lower() for line in f)
+            return password.lower() in common_passwords
+    except Exception as e:
+        print(f"Error checking common passwords: {str(e)}")
+        return False
 
 @app.route('/account/create', methods=['POST'])
 def create_account():
@@ -157,6 +229,7 @@ def verify():
     token = request.get_json().get('token')
     try:
         data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        update_session_activity(token)  # Add this line
         return jsonify({'user_number': data['user_number']})
     except jwt.ExpiredSignatureError:
         return jsonify({'message': 'Token has expired'}), 401
@@ -171,6 +244,7 @@ def get_user_details():
     
     try:
         data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        update_session_activity(token)  # Add this line
         user = User.query.filter_by(user_number=data['user_number']).first()
         
         if not user:
@@ -282,6 +356,7 @@ def get_security_data():
     try:
         # Clean expired sessions first
         remove_expired_sessions()
+        update_session_activity(token)
 
         # Verify token
         data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
@@ -289,6 +364,9 @@ def get_security_data():
         
         if not user:
             return jsonify({'message': 'User not found'}), 404
+
+        # Calculate security score before converting sessions to dict
+        security_score, score_reasons = calculate_security_score(user, user.sessions)
 
         sessions = [{
             'id': session.id,
@@ -309,9 +387,20 @@ def get_security_data():
             'action': log.action
         } for log in login_history_query]
 
+        recommendations = []
+        if security_score < 6:
+            recommendations.append({
+                'type': 'security_review',
+                'message': 'Review security suggestions to improve your security score',
+                'action': 'review_security'
+            })
+
         return jsonify({
             'sessions': sessions,
-            'loginHistory': login_history
+            'loginHistory': login_history,
+            'securityScore': security_score,
+            'scoreReasons': score_reasons,
+            'recommendations': recommendations
         })
     except jwt.ExpiredSignatureError:
         return jsonify({'message': 'Token has expired'}), 401
@@ -349,6 +438,63 @@ def end_session():
             return jsonify({'message': 'Session ended successfully'})
         
         return jsonify({'message': 'Session not found'}), 404
+    except:
+        return jsonify({'message': 'Invalid token'}), 401
+
+# Add new route for password check
+@app.route('/account/check-password', methods=['POST'])
+def check_password():
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'message': 'Token is missing'}), 401
+
+    try:
+        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        password = request.json.get('password')
+        
+        if not password:
+            return jsonify({'message': 'Password is required'}), 400
+
+        is_common = is_common_password(password)
+        
+        return jsonify({
+            'is_common': is_common,
+            'message': 'This is a commonly used password. Please choose a more secure password.' if is_common 
+                      else 'Password not found in common passwords list.'
+        })
+    except:
+        return jsonify({'message': 'Invalid token'}), 401
+
+# Add new route for changing password
+@app.route('/account/change-password', methods=['POST'])
+def change_password():
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'message': 'Token is missing'}), 401
+
+    try:
+        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        user = User.query.filter_by(user_number=data['user_number']).first()
+        
+        old_password = request.json.get('old_password')
+        new_password = request.json.get('new_password')
+        
+        if not all([old_password, new_password]):
+            return jsonify({'message': 'Both old and new passwords are required'}), 400
+            
+        if not user.check_password(old_password):
+            return jsonify({'message': 'Current password is incorrect'}), 401
+            
+        if is_common_password(new_password):
+            return jsonify({
+                'message': 'Cannot use a common password. Please choose a more secure password.',
+                'is_common': True
+            }), 400
+            
+        user.set_password(new_password)
+        db.session.commit()
+        
+        return jsonify({'message': 'Password updated successfully'})
     except:
         return jsonify({'message': 'Invalid token'}), 401
 

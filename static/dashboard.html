@@ -309,6 +309,69 @@
             color: #202124;
             font-weight: 500;
         }
+
+        .security-score-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+        }
+
+        .score-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .score-display {
+            font-size: 24px;
+            font-weight: 500;
+            color: #1a73e8;
+        }
+
+        .score-reason {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #dadce0;
+        }
+
+        .score-reason:last-child {
+            border-bottom: none;
+        }
+
+        .reason-impact {
+            color: #d93025;
+            font-weight: 500;
+        }
+
+        .reason-description {
+            color: #5f6368;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .score-display {
+            text-align: right;
+        }
+
+        .score-number {
+            font-size: 24px;
+            font-weight: 500;
+        }
+
+        .score-max {
+            font-size: 18px;
+            color: #5f6368;
+        }
+
+        .score-status {
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 4px;
+        }
     </style>
 </head>
 
@@ -376,6 +439,20 @@
             </div>
 
             <div class="tab-content" id="security">
+                <div class="security-score-section">
+                    <div class="score-header">
+                        <h3>Security Score</h3>
+                        <div class="score-display">
+                            <div class="score-number">
+                                <span id="securityScore">-</span><span class="score-max">/10</span>
+                            </div>
+                            <div id="scoreStatus" class="score-status">-</div>
+                        </div>
+                    </div>
+                    <div id="scoreReasons" class="score-reasons">
+                        <!-- Score reasons will be populated here -->
+                    </div>
+                </div>
                 <div class="security-section">
                     <h3>Active Sessions</h3>
                     <div id="activeSessions"></div>
@@ -383,6 +460,16 @@
                 <div class="security-section">
                     <h3>Recent Login History</h3>
                     <div id="loginHistory"></div>
+                </div>
+                <div class="security-section">
+                    <h3>Password Security</h3>
+                    <div class="password-check-container">
+                        <div class="input-group">
+                            <input type="password" id="passwordCheck" placeholder="Enter password to check">
+                            <button onclick="checkPassword()">Check Password</button>
+                        </div>
+                        <div id="passwordCheckResult" style="margin-top: 10px;"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -436,7 +523,7 @@
         function formatDate(dateString) {
             // Parse the UTC date string and create a local date object
             const date = new Date(dateString + 'Z'); // Append 'Z' to ensure UTC parsing
-            
+
             // Get the exact timestamp for the title attribute
             const exactTime = new Intl.DateTimeFormat('en-US', {
                 year: 'numeric',
@@ -448,10 +535,10 @@
                 hour12: true,
                 timeZoneName: 'short'
             }).format(date);
-            
+
             // Get the relative time for display
             const relativeTime = formatRelativeTime(date);
-            
+
             // Return both values to be used in the HTML
             return {
                 relative: relativeTime,
@@ -471,9 +558,9 @@
                         </div>
                         <div class="session-actions">
                             ${session.current ?
-                            '<button disabled>Current Session</button>' :
-                            `<button onclick="endSession('${session.id}')">End Session</button>`
-                            }
+                        '<button disabled>Current Session</button>' :
+                        `<button onclick="endSession('${session.id}')">End Session</button>`
+                    }
                         </div>
                     </div>
                 `;
@@ -491,6 +578,39 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        function renderSecurityScore(data) {
+            const scoreElement = document.getElementById('securityScore');
+            const statusElement = document.getElementById('scoreStatus');
+            const reasonsContainer = document.getElementById('scoreReasons');
+            const score = data.securityScore;
+            
+            scoreElement.textContent = score;
+            const status = getSecurityStatus(score);
+            
+            statusElement.textContent = status.text;
+            statusElement.style.color = status.color;
+            
+            if (score === 10 && (!data.scoreReasons || data.scoreReasons.length === 0)) {
+                reasonsContainer.innerHTML = `
+                    <div class="score-reason perfect-score">
+                        <div>
+                            <div>Your security score is perfect! No action needed</div>
+                            <div class="reason-description">Keep up the good work by maintaining safe security practices</div>
+                        </div>
+                    </div>`;
+            } else {
+                reasonsContainer.innerHTML = data.scoreReasons.map(reason => `
+                    <div class="score-reason">
+                        <div>
+                            <div>${reason.reason}</div>
+                            <div class="reason-description">${reason.description}</div>
+                        </div>
+                        <div class="reason-impact">${reason.impact}</div>
+                    </div>
+                `).join('');
+            }
         }
 
         // Check if user is logged in
@@ -619,6 +739,14 @@
             }
         }
 
+        function getSecurityStatus(score) {
+            if (score === 10) return { text: 'Perfect', color: '#188038' };
+            if (score >= 7) return { text: 'Good', color: '#1a73e8' };
+            if (score >= 5) return { text: 'Fair', color: '#f29900' };
+            if (score >= 3) return { text: 'Poor', color: '#ea8600' };
+            return { text: 'Critical', color: '#d93025' };
+        }
+
         // Add profile picture upload handler
         document.getElementById('profilePictureUpload').addEventListener('change', async (event) => {
             const file = event.target.files[0];
@@ -662,6 +790,7 @@
                 if (!response.ok) throw new Error('Failed to fetch security data');
 
                 const data = await response.json();
+                renderSecurityScore(data);  // Add this line
                 renderActiveSessions(data.sessions);
                 renderLoginHistory(data.loginHistory);
             } catch (error) {
@@ -690,6 +819,40 @@
 
         // Add event listener for security tab
         document.querySelector('[data-tab="security"]').addEventListener('click', fetchSecurityData);
+
+        async function checkPassword() {
+            const password = document.getElementById('passwordCheck').value;
+            const resultDiv = document.getElementById('passwordCheckResult');
+            
+            if (!password) {
+                resultDiv.innerHTML = '<span style="color: #d93025;">Please enter a password</span>';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/account/check-password', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': localStorage.getItem('token'),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.is_common) {
+                    resultDiv.innerHTML = `<span style="color: #d93025;">${data.message}</span>`;
+                } else {
+                    resultDiv.innerHTML = `<span style="color: #188038;">${data.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<span style="color: #d93025;">Error checking password</span>';
+            }
+            
+            // Clear the password input
+            document.getElementById('passwordCheck').value = '';
+        }
     </script>
 </body>
 
