@@ -245,8 +245,33 @@
 
     <script>
         let token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = '/';
+
+        async function verifyTokenAndLoad() {
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch('/account/details', {
+                    headers: { 'Authorization': token }
+                });
+
+                if (!response.ok) {
+                    // Token is invalid or expired, or another error
+                    localStorage.removeItem('token');
+                    window.location.href = '/';
+                    return;
+                }
+
+                // Token is valid, proceed to load apps
+                loadApps();
+
+            } catch (error) {
+                console.error('Error during token verification:', error);
+                localStorage.removeItem('token');
+                window.location.href = '/';
+            }
         }
 
         function loadApps() {
@@ -310,8 +335,8 @@
             }
         });
 
-        // Load apps when page loads
-        loadApps();
+        // Verify token and load apps when page loads
+        verifyTokenAndLoad();
     </script>
 </body>
 
