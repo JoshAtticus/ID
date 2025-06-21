@@ -10,6 +10,7 @@ import pathlib
 import secrets
 from sqlalchemy import text  # Add this import at the top with other imports
 from urllib.parse import urlparse
+import base64
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "your_secret_key"
@@ -714,18 +715,45 @@ def oauth_approve():
 
 @app.route("/oauth/token", methods=["POST"])
 def oauth_token():
+    # Start with empty client credentials
+    client_id = None
+    client_secret = None
+
+    # First, try to get credentials from HTTP Basic Auth header (the secure, preferred method)
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Basic "):
+        try:
+            # The header is "Basic BASE64_STRING", so we split and take the second part
+            encoded_creds = auth_header.split(" ", 1)[1]
+            # Decode from base64
+            decoded_creds = base64.b64decode(encoded_creds).decode("utf-8")
+            # Split "client_id:client_secret" into two parts
+            client_id, client_secret = decoded_creds.split(":", 1)
+        except (ValueError, TypeError):
+            return jsonify({"error": "invalid_request", "error_description": "Malformed Authorization header"}), 400
+
+    # If they were not in the header, fall back to checking the request body
+    if not client_id:
+        client_id = request.form.get("client_id")
+        client_secret = request.form.get("client_secret")
+
+    # Now, validate the credentials we found
+    if not client_id:
+        return jsonify({"error": "invalid_request", "error_description": "Client credentials not provided"}), 400
+
+    oauth_app = OAuthApp.query.filter_by(client_id=client_id, client_secret=client_secret).first()
+    if not oauth_app:
+        # Use a print statement to be 100% sure what the server sees before failing
+        print(f"Server rejected credentials: ID='{client_id}', Secret='{client_secret}'")
+        return jsonify({"error": "invalid_client"}), 401
+
+    # --- The rest of your function logic remains the same ---
     grant_type = request.form.get("grant_type")
     code = request.form.get("code")
-    client_id = request.form.get("client_id")
-    client_secret = request.form.get("client_secret")
     redirect_uri = request.form.get("redirect_uri")
 
     if grant_type != "authorization_code":
         return jsonify({"error": "unsupported_grant_type"}), 400
-
-    oauth_app = OAuthApp.query.filter_by(client_id=client_id, client_secret=client_secret).first()
-    if not oauth_app:
-        return jsonify({"error": "invalid_client"}), 401
 
     oauth_code = OAuthCode.query.filter_by(code=code, app_id=oauth_app.id).first()
     if not oauth_code or oauth_code.used:
@@ -735,13 +763,10 @@ def oauth_token():
     if oauth_code.redirect_uri != redirect_uri:
         return jsonify({"error": "invalid_grant", "error_description": "Redirect URI mismatch"}), 400
 
-    # Mark code as used
     oauth_code.used = True
     db.session.commit()
 
-    # Issue access token
     access_token = secrets.token_urlsafe(48)
-    # Store in OAuthAuthorization (create or update)
     auth = OAuthAuthorization.query.filter_by(user_id=oauth_code.user_id, app_id=oauth_app.id).first()
     if not auth:
         auth = OAuthAuthorization(
@@ -763,7 +788,6 @@ def oauth_token():
         "expires_in": 3600,
         "scope": oauth_code.scopes,
     })
-
 
 @app.route("/oauth/userinfo", methods=["GET"])
 def oauth_userinfo():
