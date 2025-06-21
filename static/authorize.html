@@ -210,7 +210,7 @@
     <div class="login-container">
         <h2>Authorize Application</h2>
         <div id="app-info">
-            <p>The application <strong id="app-name"></strong> is requesting access to your account.</p>
+            <p>The application <strong id="app-name"></strong> is requesting access to your JoshAtticusID.</p>
         </div>
         <div class="scope-list">
             <h3>This app will be able to:</h3>
@@ -261,7 +261,7 @@
             `;
 
             const appInfo = document.getElementById('app-info');
-            appInfo.innerHTML = `<p>The application <strong>${appNameContainer.outerHTML}</strong> is requesting access to your account.</p>`;
+            appInfo.innerHTML = `<p>The application <strong>${appNameContainer.outerHTML}</strong> is requesting access to your JoshAtticusID.</p>`;
 
             const scopeItems = document.getElementById('scope-items');
             const scopes = params.get('scope').split(',');
