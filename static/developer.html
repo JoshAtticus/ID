@@ -4,13 +4,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Developer Dashboard - SCEAID</title>
+    <title>Developer Dashboard - JoshAtticusID</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --background-start-rgb: 10, 10, 10;
+            --background-end-rgb: 30, 30, 30;
+            --tile-start-rgb: 45, 46, 48;
+            --tile-end-rgb: 32, 33, 36;
+            --tile-border: 1px solid #5f6368;
+            --primary-color: #8ab4f8;
+            --secondary-color: #969ba1;
+            --text-color: #e8eaed;
+            --button-text-color: #202124;
+        }
+
         body {
-            font-family: 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
+            font-family: 'Inter', 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
             margin: 0;
             padding: 0;
-            background: #f1f3f4;
+            background: linear-gradient(to bottom right, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
+            color: var(--text-color);
         }
 
         .dashboard-container {
@@ -20,9 +36,10 @@
 
         .sidebar {
             width: 250px;
-            background: #fff;
+            background: rgba(var(--tile-start-rgb), 0.8);
             padding: 24px 0;
-            border-right: 1px solid #dadce0;
+            border-right: var(--tile-border);
+            backdrop-filter: blur(10px);
         }
 
         .nav-header {
@@ -31,9 +48,9 @@
         }
 
         .nav-header h2 {
-            color: #202124;
+            color: var(--text-color);
             font-size: 22px;
-            font-weight: 400;
+            font-weight: 500;
             margin: 16px 0 0;
         }
 
@@ -46,14 +63,21 @@
         .nav-links a {
             display: block;
             padding: 12px 24px;
-            color: #5f6368;
+            color: var(--secondary-color);
             text-decoration: none;
             font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            background: rgba(138, 180, 248, 0.1);
+            color: var(--primary-color);
         }
 
         .nav-links a.active {
-            color: #1a73e8;
-            background: #e8f0fe;
+            color: var(--primary-color);
+            background: rgba(138, 180, 248, 0.2);
+            border-right: 3px solid var(--primary-color);
         }
 
         .main-content {
@@ -69,60 +93,73 @@
         }
 
         .header h1 {
-            color: #202124;
-            font-size: 22px;
-            font-weight: 400;
+            color: var(--text-color);
+            font-size: 28px;
+            font-weight: 500;
             margin: 0;
         }
 
         .primary-button {
-            background: #1a73e8;
-            color: white;
-            padding: 8px 16px;
+            background: var(--primary-color);
+            color: var(--button-text-color);
+            padding: 10px 20px;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
+            transition: all 0.3s ease;
         }
 
         .primary-button:hover {
-            background: #1557b0;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+            box-shadow: 0 4px 15px 0 rgba(138, 180, 248, 0.4);
+            transform: translateY(-2px);
         }
 
-        .app-card {
-            background: #fff;
-            border-radius: 8px;
+        .app-card,
+        .create-app-form {
+            background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb)));
+            border-radius: 12px;
             padding: 24px;
             margin-bottom: 24px;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+            border: var(--tile-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .app-card h3 {
-            color: #202124;
+            color: var(--text-color);
             font-size: 18px;
-            font-weight: 400;
+            font-weight: 500;
             margin: 0 0 16px;
         }
 
         .secret-box {
-            background: #f8f9fa;
+            background: #3c4043;
             padding: 12px;
-            border-radius: 4px;
+            border-radius: 8px;
             font-family: monospace;
             margin: 12px 0;
-            color: #202124;
-            border: 1px solid #dadce0;
+            color: var(--text-color);
+            border: 1px solid #5f6368;
+            word-break: break-all;
         }
 
-        .create-app-form {
-            background: #fff;
-            border-radius: 8px;
-            padding: 24px;
-            max-width: 500px;
-            margin: 20px auto;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+        .create-app-form h2 {
+            font-size: 22px;
+            margin-bottom: 20px;
         }
 
         .input-group {
@@ -131,24 +168,36 @@
 
         .input-group label {
             display: block;
-            color: #5f6368;
+            color: var(--secondary-color);
             font-size: 14px;
             margin-bottom: 8px;
         }
 
         .input-group input {
             width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #dadce0;
-            border-radius: 4px;
+            padding: 10px 12px;
+            border: 1px solid #5f6368;
+            border-radius: 8px;
             font-size: 14px;
-            color: #202124;
+            color: var(--text-color);
             box-sizing: border-box;
+            background-color: #3c4043;
+            transition: all 0.3s ease;
         }
 
         .input-group input:focus {
-            border-color: #1a73e8;
+            border-color: var(--primary-color);
             outline: none;
+            box-shadow: 0 0 10px rgba(138, 180, 248, 0.3);
+        }
+
+        a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>

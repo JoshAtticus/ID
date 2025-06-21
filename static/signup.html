@@ -3,31 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create Account - SCEAID</title>
+    <title>Create Account - JoshAtticusID</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --background-start-rgb: 10, 10, 10;
+            --background-end-rgb: 30, 30, 30;
+            --primary-glow: radial-gradient(rgba(138, 180, 248, 0.4), rgba(138, 180, 248, 0));
+            --secondary-glow: linear-gradient(to bottom right, rgba(138, 180, 248, 0), rgba(138, 180, 248, 0), rgba(138, 180, 248, 0.3));
+            --tile-start-rgb: 45, 46, 48;
+            --tile-end-rgb: 32, 33, 36;
+            --tile-border: 1px solid #5f6368;
+            --primary-color: #8ab4f8;
+            --secondary-color: #969ba1;
+            --text-color: #e8eaed;
+            --button-text-color: #202124;
+            --danger-color: #f28b82;
+        }
+
         body {
-            font-family: 'Google Sans','Noto Sans Myanmar UI',arial,sans-serif;
+            font-family: 'Inter', 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
             margin: 0;
             padding: 0;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #fff;
+            background: linear-gradient(to bottom right, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        body::before,
+        body::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            filter: blur(45px);
+            transform: translate(-50%, -50%);
+            z-index: -1;
+        }
+
+        body::before {
+            background: var(--primary-glow);
+            width: 900px;
+            height: 360px;
+        }
+
+        body::after {
+            background: var(--secondary-glow);
+            width: 100%;
+            height: 100%;
         }
 
         .login-container {
             width: 448px;
             padding: 48px 40px 36px;
-            border: 1px solid #dadce0;
-            border-radius: 8px;
+            border: var(--tile-border);
+            border-radius: 12px;
             text-align: center;
+            background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb)));
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         h2 {
-            color: #202124;
-            font-size: 24px;
-            font-weight: 400;
+            color: var(--text-color);
+            font-size: 28px;
+            font-weight: 500;
             margin: 0 0 30px;
         }
 
@@ -45,17 +104,20 @@
         input {
             width: 100%;
             padding: 13px 15px;
-            border: 1px solid #dadce0;
-            border-radius: 4px;
+            border: 1px solid #5f6368;
+            border-radius: 8px;
             font-size: 16px;
-            color: #202124;
+            color: var(--text-color);
             outline: none;
             box-sizing: border-box;
+            background-color: #3c4043;
+            transition: all 0.3s ease;
         }
 
         input:focus {
-            border: 2px solid #1a73e8;
+            border: 2px solid var(--primary-color);
             padding: 12px 14px;
+            box-shadow: 0 0 10px rgba(138, 180, 248, 0.3);
         }
 
         label {
@@ -63,7 +125,7 @@
             left: 15px;
             top: 50%;
             transform: translateY(-50%);
-            color: #5f6368;
+            color: var(--secondary-color);
             transition: 0.2s ease all;
             pointer-events: none;
         }
@@ -71,82 +133,55 @@
         input:focus + label,
         input:not(:placeholder-shown) + label {
             top: 0;
-            background: white;
+            background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb)));
             padding: 0 4px;
             font-size: 12px;
-            color: #1a73e8;
+            color: var(--primary-color);
         }
 
         button {
-            background: #1a73e8;
-            color: white;
+            background: var(--primary-color);
+            color: var(--button-text-color);
             padding: 12px 24px;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            align-self: flex-end;
             text-transform: uppercase;
+            transition: all 0.3s ease;
         }
 
         button:hover {
-            background: #1557b0;
-            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            box-shadow: 0 4px 15px 0 rgba(138, 180, 248, 0.4);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px 0 rgba(138, 180, 248, 0.3);
         }
 
         .error-text {
-            color: #d93025;
+            color: var(--danger-color);
             font-size: 12px;
             margin-top: 8px;
             display: none;
         }
 
         input.error {
-            border-color: #d93025;
-        }
-
-        input.error:focus {
-            border-color: #d93025;
-        }
-
-        input.error + label {
-            color: #d93025;
-        }
-
-        .error-container {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            padding: 40px;
-        }
-
-        .error-container h2 {
-            color: #202124;
-            font-size: 24px;
-            margin-bottom: 16px;
-        }
-
-        .error-container p {
-            color: #5f6368;
-            font-size: 16px;
-            margin-bottom: 24px;
-        }
-
-        .try-again-button {
-            background: #1a73e8;
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
+            border-color: var(--danger-color);
+            animation: shake 0.3s;
         }
 
         .step {
             display: none;
+            animation: stepFadeIn 0.5s;
+        }
+
+        @keyframes stepFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .step.active {
@@ -161,27 +196,31 @@
         }
 
         .progress-step {
-            width: 24px;
-            height: 24px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
-            background: #e8f0fe;
-            border: 2px solid #1a73e8;
+            background: #3c4043;
+            border: 2px solid #5f6368;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
-            color: #1a73e8;
+            font-size: 14px;
+            color: var(--secondary-color);
             z-index: 2;
+            transition: all 0.4s ease;
         }
 
         .progress-step.active {
-            background: #1a73e8;
-            color: white;
+            background: var(--primary-color);
+            color: var(--button-text-color);
+            border-color: var(--primary-color);
+            transform: scale(1.1);
         }
 
         .progress-step.completed {
-            background: #1a73e8;
-            color: white;
+            background: var(--primary-color);
+            color: var(--button-text-color);
+            border-color: var(--primary-color);
         }
 
         .progress-line {
@@ -189,34 +228,54 @@
             top: 50%;
             left: 0;
             transform: translateY(-50%);
-            height: 2px;
-            background: #1a73e8;
+            height: 4px;
+            background: var(--primary-color);
             width: 0%;
-            transition: width 0.3s ease;
+            transition: width 0.4s ease;
+            z-index: 1;
+            border-radius: 2px;
         }
 
         .review-item {
             text-align: left;
             margin: 10px 0;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 4px;
+            padding: 15px;
+            background: #3c4043;
+            border-radius: 8px;
+            border-left: 3px solid var(--primary-color);
         }
 
         .review-label {
             font-size: 12px;
-            color: #5f6368;
+            color: var(--secondary-color);
         }
 
         .review-value {
             font-size: 16px;
-            color: #202124;
+            color: var(--text-color);
         }
 
         .buttons-container {
             display: flex;
             justify-content: space-between;
             margin-top: 24px;
+        }
+
+        #prevBtn {
+            background: transparent;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+
+        a {
+            color: var(--primary-color);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        a:hover {
+            text-decoration: underline;
+            color: #9ac0f9;
         }
     </style>
 </head>
@@ -232,18 +291,8 @@
         </div>
 
         <form id="signupForm">
-            <!-- Step 1: Student Number -->
+            <!-- Step 1: Name and DOB -->
             <div class="step active" data-step="1">
-                <p style="color: #5f6368; margin-bottom: 20px;">Please enter your student number, which can be found on the back of your Student SmartRider card.</p>
-                <div class="input-group">
-                    <input type="text" id="user_number" name="user_number" required placeholder=" " pattern="1[0-9]{5}">
-                    <label for="user_number">Student Number</label>
-                    <div class="error-text" id="user-error"></div>
-                </div>
-            </div>
-
-            <!-- Step 2: Name and DOB -->
-            <div class="step" data-step="2">
                 <div class="input-group">
                     <input type="text" id="full_name" name="full_name" required placeholder=" ">
                     <label for="full_name">Full Name</label>
@@ -256,17 +305,17 @@
                 </div>
             </div>
 
-            <!-- Step 3: Email -->
-            <div class="step" data-step="3">
+            <!-- Step 2: Email -->
+            <div class="step" data-step="2">
                 <div class="input-group">
-                    <input type="email" id="email" name="email" required placeholder=" ">
-                    <label for="email">School Email (firstname.lastname@school.wa.edu.au)</label>
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required>
                     <div class="error-text" id="email-error"></div>
                 </div>
             </div>
 
-            <!-- Step 4: Password -->
-            <div class="step" data-step="4">
+            <!-- Step 3: Password -->
+            <div class="step" data-step="3">
                 <div class="input-group">
                     <input type="password" id="password" name="password" required placeholder=" ">
                     <label for="password">Create password</label>
@@ -280,12 +329,8 @@
             </div>
 
             <!-- Review Step -->
-            <div class="step" data-step="5">
+            <div class="step" data-step="4">
                 <h3 style="margin-bottom: 20px;">Review Your Information</h3>
-                <div class="review-item">
-                    <div class="review-label">Student Number</div>
-                    <div class="review-value" id="review-user-number"></div>
-                </div>
                 <div class="review-item">
                     <div class="review-label">Full Name</div>
                     <div class="review-value" id="review-full-name"></div>
@@ -295,7 +340,7 @@
                     <div class="review-value" id="review-dob"></div>
                 </div>
                 <div class="review-item">
-                    <div class="review-label">School Email</div>
+                    <div class="review-label">Email</div>
                     <div class="review-value" id="review-email"></div>
                 </div>
             </div>
@@ -308,13 +353,13 @@
         </form>
 
         <div style="margin-top: 20px;">
-            <a href="/" style="color: #1a73e8; text-decoration: none;">I have an account</a>
+            <a href="/">I have an account</a>
         </div>
     </div>
 
     <script>
         let currentStep = 1;
-        const totalSteps = 5;
+        const totalSteps = 4;
 
         function updateProgressBar() {
             const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
@@ -351,22 +396,13 @@
         function validateStep(step) {
             switch(step) {
                 case 1:
-                    const userNumber = document.getElementById('user_number');
-                    return userNumber.checkValidity();
-                case 2:
                     const fullName = document.getElementById('full_name');
                     const dob = document.getElementById('dob');
                     return fullName.checkValidity() && dob.checkValidity();
-                case 3:
+                case 2:
                     const email = document.getElementById('email');
-                    const emailValue = email.value;
-                    const emailPrefix = emailValue.split('@')[0];
-                    const hasValidFormat = emailPrefix.includes('.') && 
-                                          emailPrefix.split('.').length === 2 &&
-                                          emailPrefix.split('.').every(part => /^[a-zA-Z]+$/.test(part));
-                    const isValidDomain = ALLOWED_DOMAINS.some(domain => emailValue.toLowerCase().endsWith('@' + domain));
-                    return hasValidFormat && isValidDomain;
-                case 4:
+                    return email.checkValidity();
+                case 3:
                     const password = document.getElementById('password');
                     const confirmPassword = document.getElementById('confirm_password');
                     return password.value === confirmPassword.value && password.checkValidity();
@@ -376,7 +412,6 @@
         }
 
         function updateReview() {
-            document.getElementById('review-user-number').textContent = document.getElementById('user_number').value;
             document.getElementById('review-full-name').textContent = document.getElementById('full_name').value;
             document.getElementById('review-dob').textContent = document.getElementById('dob').value;
             document.getElementById('review-email').textContent = document.getElementById('email').value;
@@ -399,7 +434,6 @@
 
         document.getElementById('signupForm').addEventListener('submit', async function(event) {
             event.preventDefault();
-            const user_number = document.getElementById('user_number').value;
             const full_name = document.getElementById('full_name').value;
             const dob = document.getElementById('dob').value;
             const email = document.getElementById('email').value;
@@ -412,7 +446,6 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ 
-                        user_number, 
                         full_name, 
                         dob, 
                         email, 
@@ -425,45 +458,18 @@
                 if (response.ok) {
                     window.location.href = '/';  // Redirect to login page
                 } else {
-                    const errorText = document.getElementById('user-error');
-                    errorText.textContent = data.message;
-                    errorText.style.display = 'block';
+                    alert(data.message);
                 }
             } catch (error) {
                 console.error('Error:', error);
             }
         });
 
-        const ALLOWED_DOMAINS = [
-            "scea.wa.edu.au",
-            "swan.wa.edu.au",
-            "mundaringcc.wa.edu.au",
-            "ellenbrook.wa.edu.au",
-            "beechboro.wa.edu.au",
-            "kalamundacs.wa.edu.au",
-            "northshore.wa.edu.au",
-            "southernhills.wa.edu.au"
-        ];
-
         document.getElementById('email').addEventListener('input', function(e) {
             const email = e.target.value;
             const errorElement = document.getElementById('email-error');
-            
-            // Check if email follows firstname.lastname format
-            const emailPrefix = email.split('@')[0];
-            const hasValidFormat = emailPrefix.includes('.') && 
-                                  emailPrefix.split('.').length === 2 &&
-                                  emailPrefix.split('.').every(part => /^[a-zA-Z]+$/.test(part));
-
-            // Check if domain is allowed
-            const isValidDomain = ALLOWED_DOMAINS.some(domain => email.toLowerCase().endsWith('@' + domain));
-
-            if (!hasValidFormat) {
-                errorElement.textContent = 'Email must be in firstname.lastname format';
-                errorElement.style.display = 'block';
-                e.target.classList.add('error');
-            } else if (!isValidDomain) {
-                errorElement.textContent = 'Please use your SCEA school email address';
+            if (email.indexOf('@') === -1) {
+                errorElement.textContent = 'Please enter a valid email.';
                 errorElement.style.display = 'block';
                 e.target.classList.add('error');
             } else {

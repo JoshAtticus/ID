@@ -4,63 +4,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - SCEAID</title>
+    <title>Dashboard - JoshAtticusID</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --background-start-rgb: 10, 10, 10;
+            --background-end-rgb: 30, 30, 30;
+            --tile-start-rgb: 45, 46, 48;
+            --tile-end-rgb: 32, 33, 36;
+            --tile-border: 1px solid #5f6368;
+            --primary-color: #8ab4f8;
+            --secondary-color: #969ba1;
+            --text-color: #e8eaed;
+            --button-text-color: #202124;
+            --danger-color: #f28b82;
+            --success-color: #1e8e3e;
+        }
+
         body {
-            font-family: 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            font-family: 'Inter', 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
             margin: 0;
             padding: 0;
-            background: #f1f3f4;
+            background: linear-gradient(to bottom right, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
+            color: var(--text-color);
         }
 
         .header {
-            background: #fff;
+            background: rgba(var(--tile-start-rgb), 0.8);
             padding: 16px 24px;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+            border-bottom: var(--tile-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
         .header h1 {
-            color: #202124;
+            color: var(--text-color);
             font-size: 22px;
-            font-weight: 400;
+            font-weight: 500;
             margin: 0;
         }
 
         .logout-button {
-            background: #1a73e8;
-            color: white;
+            background: var(--primary-color);
+            color: var(--button-text-color);
             padding: 8px 16px;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .logout-button:hover {
+            box-shadow: 0 4px 15px 0 rgba(138, 180, 248, 0.4);
+            transform: translateY(-2px);
         }
 
         .container {
             max-width: 1200px;
             margin: 24px auto;
             padding: 0 24px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
         }
 
-        .welcome-card {
-            background: #fff;
-            border-radius: 8px;
+        .welcome-card,
+        .info-card,
+        .security-section,
+        .recommendation-card,
+        .app-card {
+            background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb)));
+            border-radius: 12px;
             padding: 24px;
             margin-bottom: 24px;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+            border: var(--tile-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--secondary-color);
+            font-size: 14px;
+            margin-top: auto;
         }
 
         .welcome-card h2 {
             margin: 0 0 8px 0;
+            color: var(--text-color);
+            font-weight: 500;
         }
 
         .welcome-card .email {
-            color: #5f6368;
+            color: var(--secondary-color);
             font-size: 14px;
             margin: 0;
         }
@@ -72,15 +121,8 @@
             margin-top: 24px;
         }
 
-        .info-card {
-            background: #fff;
-            border-radius: 8px;
-            padding: 16px;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
-        }
-
         .info-card h3 {
-            color: #5f6368;
+            color: var(--secondary-color);
             font-size: 14px;
             margin: 0 0 8px 0;
             text-transform: uppercase;
@@ -88,68 +130,58 @@
         }
 
         .info-card p {
-            color: #202124;
+            color: var(--text-color);
             font-size: 16px;
             margin: 0;
         }
 
-        .tab-container {
-            margin-bottom: 24px;
-        }
-
         .tabs {
             display: flex;
-            border-bottom: 1px solid #dadce0;
+            border-bottom: 1px solid #5f6368;
             margin-bottom: 24px;
         }
 
         .tab {
             padding: 16px 24px;
-            color: #5f6368;
+            color: var(--secondary-color);
             cursor: pointer;
             border-bottom: 2px solid transparent;
             font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            background: rgba(138, 180, 248, 0.1);
         }
 
         .tab.active {
-            color: #1a73e8;
-            border-bottom-color: #1a73e8;
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
         }
 
         .tab-content {
             display: none;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         .tab-content.active {
             display: block;
         }
 
-        .sign-in-card {
-            background: #fff;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 16px;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .sign-in-info h4 {
-            margin: 0 0 4px 0;
-            color: #202124;
-        }
-
-        .sign-in-info p {
-            margin: 0;
-            color: #5f6368;
-            font-size: 14px;
-        }
-
         .recommendations-placeholder {
             text-align: center;
             padding: 48px;
-            color: #5f6368;
+            color: var(--secondary-color);
         }
 
         .profile-picture-container {
@@ -166,8 +198,8 @@
             height: 150px;
             border-radius: 50%;
             object-fit: cover;
-            border: 3px solid #fff;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+            border: 3px solid var(--primary-color);
+            box-shadow: 0 4px 15px 0 rgba(138, 180, 248, 0.3);
             transition: filter 0.3s ease;
         }
 
@@ -180,11 +212,11 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(26, 115, 232, 0.9);
-            color: white;
+            background: rgba(138, 180, 248, 0.9);
+            color: var(--button-text-color);
             padding: 8px 16px;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
@@ -200,122 +232,69 @@
             opacity: 1;
         }
 
-        .recommendation-card {
-            background: #fff;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 16px;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .recommendation-info h4 {
-            margin: 0 0 4px 0;
-            color: #202124;
-        }
-
-        .recommendation-info p {
-            margin: 0;
-            color: #5f6368;
-            font-size: 14px;
-        }
-
-        .recommendation-button {
-            background: #1a73e8;
-            color: white;
+        .recommendation-button,
+        .session-actions button,
+        .revoke-button {
+            background: var(--primary-color);
+            color: var(--button-text-color);
             padding: 8px 16px;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            transition: background-color 0.3s ease;
+            transition: all 0.3s ease;
         }
 
-        .recommendation-button:hover {
-            background: #1557b0;
+        .recommendation-button:hover,
+        .session-actions button:hover,
+        .revoke-button:hover {
+            box-shadow: 0 4px 15px 0 rgba(138, 180, 248, 0.4);
+            transform: translateY(-2px);
         }
 
-        .security-section {
-            background: #fff;
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+        .session-actions button {
+            background: var(--danger-color);
+        }
+
+        .revoke-button {
+            background: transparent;
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+        }
+
+        .revoke-button:hover {
+            background: var(--danger-color);
+            color: var(--button-text-color);
         }
 
         .security-section h3 {
-            color: #202124;
+            color: var(--text-color);
             font-size: 18px;
             margin: 0 0 16px 0;
         }
 
-        .session-card {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px;
-            border-bottom: 1px solid #dadce0;
-        }
-
-        .session-info {
-            flex-grow: 1;
-        }
-
-        .session-info h4 {
-            margin: 0 0 4px 0;
-            color: #202124;
-        }
-
-        .session-info p {
-            margin: 0;
-            color: #5f6368;
-            font-size: 14px;
-        }
-
-        .session-actions button {
-            background: #dc3545;
-            color: white;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-        }
-
-        .session-actions button:hover {
-            background: #c82333;
-        }
-
+        .session-card,
         .login-record {
-            padding: 12px 16px;
-            border-bottom: 1px solid #dadce0;
+            padding: 16px;
+            border-bottom: 1px solid #5f6368;
         }
 
+        .session-card:last-child,
         .login-record:last-child {
             border-bottom: none;
         }
 
-        .login-record p {
-            margin: 0;
-            color: #5f6368;
-            font-size: 14px;
-        }
-
+        .session-info h4,
         .login-record .login-time {
-            color: #202124;
+            color: var(--text-color);
             font-weight: 500;
         }
 
-        .security-score-section {
-            background: #fff;
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+        .session-info p,
+        .login-record p {
+            color: var(--secondary-color);
+            font-size: 14px;
         }
 
         .score-header {
@@ -326,45 +305,18 @@
         }
 
         .score-display {
-            font-size: 24px;
-            font-weight: 500;
-            color: #1a73e8;
-        }
-
-        .score-reason {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #dadce0;
-        }
-
-        .score-reason:last-child {
-            border-bottom: none;
-        }
-
-        .reason-impact {
-            color: #d93025;
-            font-weight: 500;
-        }
-
-        .reason-description {
-            color: #5f6368;
-            font-size: 14px;
-            margin-top: 4px;
-        }
-
-        .score-display {
             text-align: right;
         }
 
         .score-number {
             font-size: 24px;
             font-weight: 500;
+            color: var(--primary-color);
         }
 
         .score-max {
             font-size: 18px;
-            color: #5f6368;
+            color: var(--secondary-color);
         }
 
         .score-status {
@@ -373,65 +325,48 @@
             margin-top: 4px;
         }
 
-        .app-card {
-            background: #fff;
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 16px;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+        .score-reason {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            padding: 8px 0;
+            border-bottom: 1px solid #5f6368;
         }
 
-        .app-info {
-            flex-grow: 1;
+        .score-reason:last-child {
+            border-bottom: none;
+        }
+
+        .reason-impact {
+            color: var(--danger-color);
+            font-weight: 500;
+        }
+
+        .reason-description {
+            color: var(--secondary-color);
+            font-size: 14px;
+            margin-top: 4px;
         }
 
         .app-info h4 {
-            margin: 0;
             display: inline-flex;
             align-items: center;
         }
 
         .app-info p {
-            margin: 0 0 4px 0;
-            color: #5f6368;
+            color: var(--secondary-color);
             font-size: 14px;
-        }
-
-        .app-actions {
-            display: flex;
-            gap: 12px;
-            align-items: center;
         }
 
         .app-link {
-            color: #1a73e8;
+            color: var(--primary-color);
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
+            transition: color 0.3s ease;
         }
 
         .app-link:hover {
             text-decoration: underline;
-        }
-
-        .revoke-button {
-            background: transparent;
-            color: #dc3545;
-            border: 1px solid #dc3545;
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .revoke-button:hover {
-            background: #dc3545;
-            color: white;
         }
 
         .scope-tags {
@@ -442,20 +377,18 @@
         }
 
         .scope-tag {
-            background: #f1f3f4;
+            background: #3c4043;
             padding: 4px 12px;
             border-radius: 16px;
             font-size: 12px;
-            color: #5f6368;
+            color: var(--text-color);
         }
 
         .verified-badge {
             display: inline-flex;
             align-items: center;
             margin-left: 8px;
-            color: #1a73e8;
-            font-size: 14px;
-            position: relative;
+            color: var(--primary-color);
             cursor: help;
         }
 
@@ -468,8 +401,8 @@
         .verified-badge::after {
             content: "This app has been verified to be official and safe";
             position: absolute;
-            background: rgba(32, 33, 36, 0.9);
-            color: white;
+            background: #3c4043;
+            color: #e8eaed;
             padding: 8px 12px;
             border-radius: 4px;
             font-size: 12px;
@@ -487,17 +420,12 @@
             visibility: visible;
             opacity: 1;
         }
-
-        .app-name-container {
-            display: flex;
-            align-items: center;
-        }
     </style>
 </head>
 
 <body>
     <div class="header">
-        <h1>SCEAID Dashboard</h1>
+        <h1>Dashboard</h1>
         <button class="logout-button" id="logoutButton">Logout</button>
     </div>
 
@@ -537,20 +465,16 @@
                 </div>
                 <div class="user-info">
                     <div class="info-card">
-                        <h3>User Number</h3>
-                        <p id="userNumber">-</p>
-                    </div>
-                    <div class="info-card">
                         <h3>Full Name</h3>
                         <p id="fullName">-</p>
                     </div>
                     <div class="info-card">
                         <h3>Date of Birth</h3>
-                        <p id="dob">-</p>
+                        <p id="dob"></p>
                     </div>
                     <div class="info-card">
-                        <h3>School</h3>
-                        <p id="userSchool">-</p>
+                        <h3>Account Status</h3>
+                        <p id="accountStatus"></p>
                     </div>
                 </div>
             </div>
@@ -601,6 +525,10 @@
             </div>
         </div>
     </div>
+
+    <footer class="footer">
+        &copy; 2025 JoshAtticus
+    </footer>
 
     <script>
         function parseUserAgent(userAgent) {
@@ -710,13 +638,13 @@
             const statusElement = document.getElementById('scoreStatus');
             const reasonsContainer = document.getElementById('scoreReasons');
             const score = data.securityScore;
-            
+
             scoreElement.textContent = score;
             const status = getSecurityStatus(score);
-            
+
             statusElement.textContent = status.text;
             statusElement.style.color = status.color;
-            
+
             if (score === 10 && (!data.scoreReasons || data.scoreReasons.length === 0)) {
                 reasonsContainer.innerHTML = `
                     <div class="score-reason perfect-score">
@@ -763,14 +691,13 @@
 
                 // Update all user information
                 document.getElementById('userName').textContent = data.full_name;
-                document.getElementById('userNumber').textContent = data.user_number;
                 document.getElementById('fullName').textContent = data.full_name;
                 document.getElementById('email').textContent = data.email;
                 document.getElementById('dob').textContent = data.dob;
-                document.getElementById('userSchool').textContent = data.school;
+                document.getElementById('accountStatus').textContent = data.account_status;
 
                 if (data.profile_picture) {
-                    document.getElementById('profilePicture').src = '/static/uploads/' + data.profile_picture;
+                    document.getElementById('profilePicture').src = `/static/uploads/${data.profile_picture}`;
                 }
             } catch (error) {
                 console.error('Error fetching user details:', error);
@@ -858,7 +785,7 @@
             }
         }
 
-        function handleRecommendationAction(acation) {
+        function handleRecommendationAction(action) {
             if (action === 'set_profile_picture') {
                 document.querySelector('[data-tab="personal-info"]').click();
                 document.getElementById('profilePictureUpload').click();
@@ -866,11 +793,26 @@
         }
 
         function getSecurityStatus(score) {
-            if (score === 10) return { text: 'Perfect', color: '#188038' };
-            if (score >= 7) return { text: 'Good', color: '#1a73e8' };
-            if (score >= 5) return { text: 'Fair', color: '#f29900' };
-            if (score >= 3) return { text: 'Poor', color: '#ea8600' };
-            return { text: 'Critical', color: '#d93025' };
+            if (score === 10) return {
+                text: 'Perfect',
+                color: '#188038'
+            };
+            if (score >= 7) return {
+                text: 'Good',
+                color: '#1a73e8'
+            };
+            if (score >= 5) return {
+                text: 'Fair',
+                color: '#f29900'
+            };
+            if (score >= 3) return {
+                text: 'Poor',
+                color: '#ea8600'
+            };
+            return {
+                text: 'Critical',
+                color: '#d93025'
+            };
         }
 
         // Add profile picture upload handler
@@ -916,7 +858,7 @@
                 if (!response.ok) throw new Error('Failed to fetch security data');
 
                 const data = await response.json();
-                renderSecurityScore(data);  // Add this line
+                renderSecurityScore(data); // Add this line
                 renderActiveSessions(data.sessions);
                 renderLoginHistory(data.loginHistory);
             } catch (error) {
@@ -949,12 +891,12 @@
         async function checkPassword() {
             const password = document.getElementById('passwordCheck').value;
             const resultDiv = document.getElementById('passwordCheckResult');
-            
+
             if (!password) {
                 resultDiv.innerHTML = '<span style="color: #d93025;">Please enter a password</span>';
                 return;
             }
-            
+
             try {
                 const response = await fetch('/account/check-password', {
                     method: 'POST',
@@ -964,9 +906,9 @@
                     },
                     body: JSON.stringify({ password })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.is_common) {
                     resultDiv.innerHTML = `<span style="color: #d93025;">${data.message}</span>`;
                 } else {
@@ -975,7 +917,7 @@
             } catch (error) {
                 resultDiv.innerHTML = '<span style="color: #d93025;">Error checking password</span>';
             }
-            
+
             // Clear the password input
             document.getElementById('passwordCheck').value = '';
         }
@@ -987,20 +929,20 @@
                         'Authorization': token
                     }
                 });
-                
+
                 const data = await response.json();
                 const appsList = document.getElementById('apps-list');
                 const noApps = document.getElementById('no-apps');
-                
+
                 if (data.apps.length === 0) {
                     appsList.style.display = 'none';
                     noApps.style.display = 'block';
                     return;
                 }
-                
+
                 appsList.style.display = 'block';
                 noApps.style.display = 'none';
-                
+
                 appsList.innerHTML = data.apps.map(app => `
                     <div class="app-card">
                         <div class="app-info">
@@ -1038,7 +980,7 @@
             if (!confirm('Are you sure you want to revoke access for this application?')) {
                 return;
             }
-            
+
             try {
                 await fetch('/account/revoke-app', {
                     method: 'POST',
@@ -1048,7 +990,7 @@
                     },
                     body: JSON.stringify({ app_id: appId })
                 });
-                
+
                 loadAuthorizedApps();
             } catch (error) {
                 console.error('Error revoking app:', error);

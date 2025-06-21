@@ -16,7 +16,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = "static/uploads"
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
-app.config['COMMON_PASSWORDS_FILE'] = 'common_passwords.txt'
+app.config['COMMON_PASSWORDS_FILE'] = 'static/resources/common_passwords.txt'
 
 db = SQLAlchemy(app)
 
@@ -28,39 +28,13 @@ OAUTH_SCOPES = {
     "dob": "Access your date of birth",
     "email": "Access your email address",
     "profile_picture": "Access your profile picture",
-    "student_number": "Access your student number",
-    "school": "Access your school name"  # Add new scope
-}
-
-ALLOWED_DOMAINS = [
-    "scea.wa.edu.au",
-    "swan.wa.edu.au", 
-    "mundaringcc.wa.edu.au",
-    "ellenbrook.wa.edu.au",
-    "beechboro.wa.edu.au",
-    "kalamundacs.wa.edu.au",
-    "northshore.wa.edu.au",
-    "southernhills.wa.edu.au"
-]
-
-SCHOOL_DOMAINS = {
-    "scea.wa.edu.au": "SCEA",
-    "swan.wa.edu.au": "Swan Christian College",
-    "mundaringcc.wa.edu.au": "Mundaring Christian College",
-    "ellenbrook.wa.edu.au": "Ellenbrook Christian College", 
-    "beechboro.wa.edu.au": "Beechboro Christian School",
-    "kalamundacs.wa.edu.au": "Kalamunda Christian School",
-    "northshore.wa.edu.au": "Northshore Christian Grammar School",
-    "southernhills.wa.edu.au": "Southern Hills Christian College"
 }
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_number = db.Column(db.String(6), unique=True, nullable=False)
     full_name = db.Column(db.String(100), nullable=False)
     dob = db.Column(db.Date, nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
-    school = db.Column(db.String(100), nullable=False)  # Add this line
     password_hash = db.Column(db.String(120), nullable=False)
     profile_picture = db.Column(db.String(255))
     sessions = db.relationship("Session", backref="user", lazy=True)
@@ -198,55 +172,27 @@ def is_common_password(password):
 @app.route("/account/create", methods=["POST"])
 def create_account():
     data = request.get_json()
-    user_number = data.get("user_number")
     password = data.get("password")
     full_name = data.get("full_name")
     dob = data.get("dob")
     email = data.get("email")
 
-    # Validate user number format
-    if (
-        not user_number
-        or not user_number.isdigit()
-        or len(user_number) != 6
-        or not user_number.startswith("1")
-    ):
-        return jsonify({"message": "User number must be 6 digits starting with 1"}), 400
-
     # Validate email format
-    if not email or not any(email.endswith(f"@{domain}") for domain in ALLOWED_DOMAINS):
-        return jsonify({"message": "Invalid email domain. Must be a SCEA school email address"}), 400
-
-    email_prefix = email.split("@")[0]
-    if not "." in email_prefix or not all(
-        part.isalpha() for part in email_prefix.split(".")
-    ):
-        return jsonify({"message": "Email must be in firstname.lastname format"}), 400
+    if not email or "@" not in email:
+        return jsonify({"message": "Invalid email format"}), 400
 
     if not all([password, full_name, dob]):
         return jsonify({"message": "Missing required fields"}), 400
 
-    if User.query.filter_by(user_number=user_number).first():
-        return jsonify({"message": "User number already exists"}), 409
-
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email already exists"}), 409
-
-    # Determine school from email domain
-    email_domain = email.split('@')[1]
-    school = SCHOOL_DOMAINS.get(email_domain)
-    
-    if not school:
-        return jsonify({"message": "Invalid school email domain"}), 400
 
     try:
         dob_date = datetime.strptime(dob, "%Y-%m-%d").date()
         new_user = User(
-            user_number=user_number,
             full_name=full_name,
             dob=dob_date,
             email=email,
-            school=school  # Add school field
         )
         new_user.set_password(password)
         db.session.add(new_user)
@@ -260,17 +206,17 @@ def create_account():
 @app.route("/account/login", methods=["POST"])
 def login():
     data = request.get_json()
-    user_number = data.get("user_number")
+    email = data.get("email")
     password = data.get("password")
 
-    user = User.query.filter_by(user_number=user_number).first()
+    user = User.query.filter_by(email=email).first()
 
     if user and user.check_password(password):
         current_time = datetime.now(timezone.utc)  # Get current UTC time
 
         # Generate token
         token = jwt.encode(
-            {"user_number": user_number, "exp": current_time + timedelta(hours=744)},
+            {"user_id": user.id, "exp": current_time + timedelta(hours=744)},
             app.config["SECRET_KEY"],
             algorithm="HS256",
         )
@@ -305,9 +251,9 @@ def login():
 @app.route("/account/exists", methods=["POST"])
 def check_user():
     data = request.get_json()
-    user_number = data.get("user_number")
+    email = data.get("email")
 
-    user = User.query.filter_by(user_number=user_number).first()
+    user = User.query.filter_by(email=email).first()
     if user:
         return jsonify({"message": "User found"})
     return jsonify({"message": "User not found"}), 404
@@ -319,7 +265,7 @@ def verify():
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
         update_session_activity(token)  # Add this line
-        return jsonify({"user_number": data["user_number"]})
+        return jsonify({"user_id": data["user_id"]})
     except jwt.ExpiredSignatureError:
         return jsonify({"message": "Token has expired"}), 401
     except jwt.InvalidTokenError:
@@ -335,19 +281,17 @@ def get_user_details():
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
         update_session_activity(token)  # Add this line
-        user = User.query.filter_by(user_number=data["user_number"]).first()
+        user = User.query.get(data["user_id"])
 
         if not user:
             return jsonify({"message": "User not found"}), 404
 
         return jsonify(
             {
-                "user_number": user.user_number,
                 "full_name": user.full_name,
                 "email": user.email,
                 "dob": user.dob.strftime("%Y-%m-%d"),
                 "profile_picture": user.profile_picture,
-                "school": user.school
             }
         )
     except:
@@ -362,7 +306,7 @@ def upload_profile_picture():
 
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.filter_by(user_number=data["user_number"]).first()
+        user = User.query.get(data["user_id"])
 
         if "file" not in request.files:
             return jsonify({"message": "No file provided"}), 400
@@ -372,7 +316,7 @@ def upload_profile_picture():
             return jsonify({"message": "No file selected"}), 400
 
         if file and file.filename.lower().endswith((".png", ".jpg", ".jpeg")):
-            filename = secure_filename(f"{user.user_number}_{file.filename}")
+            filename = secure_filename(f"{user.id}_{file.filename}")
             filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
 
             # Delete old profile picture if it exists
@@ -402,7 +346,7 @@ def get_recommendations():
 
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.filter_by(user_number=data["user_number"]).first()
+        user = User.query.get(data["user_id"])
 
         recommendations = []
         if not user.profile_picture:
@@ -460,7 +404,7 @@ def get_security_data():
 
         # Verify token
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.filter_by(user_number=data["user_number"]).first()
+        user = User.query.get(data["user_id"])
 
         if not user:
             return jsonify({"message": "User not found"}), 404
@@ -529,7 +473,7 @@ def end_session():
 
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.filter_by(user_number=data["user_number"]).first()
+        user = User.query.get(data["user_id"])
         session_id = request.json.get("sessionId")
 
         session = Session.query.filter_by(id=session_id, user_id=user.id).first()
@@ -606,7 +550,7 @@ def oauth_approve():
     try:
         # Verify user token
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.filter_by(user_number=data["user_number"]).first()
+        user = User.query.get(data["user_id"])
         
         if not user:
             return jsonify({"message": "User not found"}), 404
@@ -713,10 +657,6 @@ def oauth_userinfo():
             response["profile_picture"] = f"http://localhost:5002/static/uploads/{user.profile_picture}"
         else:
             response["profile_picture"] = "http://localhost:5002/static/uploads/default.png"
-    if "student_number" in scopes:
-        response["student_number"] = user.user_number
-    if "school" in scopes:
-        response["school"] = user.school
 
     return jsonify(response)
 
@@ -729,7 +669,7 @@ def get_authorized_apps():
 
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.filter_by(user_number=data["user_number"]).first()
+        user = User.query.get(data["user_id"])
 
         if not user:
             return jsonify({"message": "User not found"}), 404
@@ -773,7 +713,7 @@ def revoke_app():
 
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.filter_by(user_number=data["user_number"]).first()
+        user = User.query.get(data["user_id"])
         app_id = request.json.get("app_id")
 
         if not user:
@@ -806,7 +746,7 @@ def get_developer_apps():
 
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.filter_by(user_number=data["user_number"]).first()
+        user = User.query.get(data["user_id"])
 
         if not user:
             return jsonify({"message": "User not found"}), 404
@@ -842,7 +782,7 @@ def create_developer_app():
 
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.filter_by(user_number=data["user_number"]).first()
+        user = User.query.get(data["user_id"])
 
         if not user:
             return jsonify({"message": "User not found"}), 404
@@ -915,7 +855,7 @@ def change_password():
 
     try:
         data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        user = User.query.filter_by(user_number=data['user_number']).first()
+        user = User.query.get(data['user_id'])
         
         old_password = request.json.get('old_password')
         new_password = request.json.get('new_password')
@@ -974,33 +914,6 @@ def init_db():
         # Then check and add columns if needed
         with db.engine.connect() as conn:
             try:
-                # Get existing columns for user table
-                result = conn.execute(text('PRAGMA table_info(user)'))
-                user_columns = [col[1] for col in result.fetchall()]
-                
-                # Add school column if it doesn't exist
-                if 'school' not in user_columns:
-                    print("Adding 'school' column to user table...")
-                    conn.execute(text('ALTER TABLE user ADD COLUMN school VARCHAR(100)'))
-                    
-                    # Update existing records with default school based on email domain
-                    conn.execute(text('''
-                        UPDATE user 
-                        SET school = CASE
-                            WHEN email LIKE '%@swan.wa.edu.au' THEN 'Swan Christian College'
-                            WHEN email LIKE '%@mundaringcc.wa.edu.au' THEN 'Mundaring Christian College'
-                            WHEN email LIKE '%@ellenbrook.wa.edu.au' THEN 'Ellenbrook Christian College'
-                            WHEN email LIKE '%@beechboro.wa.edu.au' THEN 'Beechboro Christian School'
-                            WHEN email LIKE '%@kalamundacs.wa.edu.au' THEN 'Kalamunda Christian School'
-                            WHEN email LIKE '%@northshore.wa.edu.au' THEN 'Northshore Christian Grammar School'
-                            WHEN email LIKE '%@southernhills.wa.edu.au' THEN 'Southern Hills Christian College'
-                            WHEN email LIKE '%@scea.wa.edu.au' THEN 'SCEA'
-                            ELSE 'Unknown School'
-                        END
-                    '''))
-                    conn.commit()
-                    print("Successfully added 'school' column and updated existing records")
-                
                 # Get existing columns for oauth_app table
                 result = conn.execute(text('PRAGMA table_info(oauth_app)'))
                 oauth_app_columns = [col[1] for col in result.fetchall()]

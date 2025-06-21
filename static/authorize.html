@@ -5,31 +5,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authorize Application - SCEAID</title>
+    <title>Authorize Application - JoshAtticusID</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --background-start-rgb: 10, 10, 10;
+            --background-end-rgb: 30, 30, 30;
+            --primary-glow: radial-gradient(rgba(138, 180, 248, 0.4), rgba(138, 180, 248, 0));
+            --secondary-glow: linear-gradient(to bottom right, rgba(138, 180, 248, 0), rgba(138, 180, 248, 0), rgba(138, 180, 248, 0.3));
+            --tile-start-rgb: 45, 46, 48;
+            --tile-end-rgb: 32, 33, 36;
+            --tile-border: 1px solid #5f6368;
+            --primary-color: #8ab4f8;
+            --secondary-color: #969ba1;
+            --text-color: #e8eaed;
+            --button-text-color: #202124;
+            --danger-color: #f28b82;
+        }
+
         body {
-            font-family: 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
+            font-family: 'Inter', 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
             margin: 0;
             padding: 0;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #f1f3f4;
+            background: linear-gradient(to bottom right, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        body::before,
+        body::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            filter: blur(45px);
+            transform: translate(-50%, -50%);
+            z-index: -1;
+        }
+
+        body::before {
+            background: var(--primary-glow);
+            width: 900px;
+            height: 360px;
+        }
+
+        body::after {
+            background: var(--secondary-glow);
+            width: 100%;
+            height: 100%;
         }
 
         .login-container {
             width: 448px;
             padding: 48px 40px 36px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+            border: var(--tile-border);
+            border-radius: 12px;
+            background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb)));
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         h2 {
-            color: #202124;
+            color: var(--text-color);
             font-size: 24px;
-            font-weight: 400;
+            font-weight: 500;
             margin: 0 0 24px;
         }
 
@@ -38,13 +96,13 @@
         }
 
         #app-info p {
-            color: #5f6368;
+            color: var(--secondary-color);
             font-size: 14px;
             margin: 0;
         }
 
         .scope-list h3 {
-            color: #202124;
+            color: var(--text-color);
             font-size: 16px;
             font-weight: 500;
             margin: 0 0 16px;
@@ -58,10 +116,11 @@
 
         .scope-item input[type="checkbox"] {
             margin-right: 12px;
+            accent-color: var(--primary-color);
         }
 
         .scope-item label {
-            color: #5f6368;
+            color: var(--secondary-color);
             font-size: 14px;
         }
 
@@ -75,54 +134,37 @@
         button {
             padding: 8px 24px;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
+            transition: all 0.3s ease;
         }
 
         button.primary {
-            background: #1a73e8;
-            color: white;
+            background: var(--primary-color);
+            color: var(--button-text-color);
         }
 
         button.primary:hover {
-            background: #1557b0;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+            box-shadow: 0 4px 15px 0 rgba(138, 180, 248, 0.4);
+            transform: translateY(-2px);
         }
 
         button.secondary {
             background: transparent;
-            color: #5f6368;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
         }
 
         button.secondary:hover {
-            background: #f1f3f4;
-        }
-
-        .warning-message {
-            background-color: #fff3e0;
-            border-left: 4px solid #ff9800;
-            padding: 12px;
-            margin: 16px 0;
-            color: #b45f06;
-            font-size: 14px;
-            display: none;
-        }
-
-        .disclaimer {
-            margin-top: 24px;
-            padding-top: 16px;
-            border-top: 1px solid #dadce0;
-            color: #5f6368;
-            font-size: 12px;
-            text-align: center;
+            background: rgba(138, 180, 248, 0.1);
         }
 
         .verified-badge {
             display: inline-flex;
             align-items: center;
-            color: #1a73e8;
+            color: var(--primary-color);
             position: relative;
             cursor: help;
             margin-left: 3px;
@@ -137,8 +179,8 @@
         .verified-badge::after {
             content: "This app has been verified to be official and safe";
             position: absolute;
-            background: rgba(32, 33, 36, 0.9);
-            color: white;
+            background: #3c4043;
+            color: #e8eaed;
             padding: 8px 12px;
             border-radius: 4px;
             font-size: 12px;
@@ -178,11 +220,6 @@
         <div class="buttons-container">
             <button type="button" onclick="window.history.back()" class="secondary">Cancel</button>
             <button type="button" onclick="authorize()" class="primary">Authorize</button>
-        </div>
-
-        <div class="disclaimer">
-            This application may contain user-generated content
-            and is not affiliated with or endorsed by Swan Christian Education Association (SCEA).
         </div>
     </div>
 

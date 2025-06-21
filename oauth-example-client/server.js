@@ -10,7 +10,7 @@ console.log('Loaded CLIENT_SECRET:', process.env.CLIENT_SECRET ? 'Present' : 'Mi
 
 app.get('/', (req, res) => {
     res.send(`
-        <h1>SCEAID OAuth Example</h1>
+        <h1>OAuth Example</h1>
         <a href="/login" style="
             display: inline-block;
             background: #1a73e8;
@@ -19,13 +19,13 @@ app.get('/', (req, res) => {
             text-decoration: none;
             border-radius: 4px;
             font-family: 'Google Sans', sans-serif;
-        ">Login with SCEAID</a>
+        ">Login</a>
     `);
 });
 
 app.get('/login', (req, res) => {
-    // Request all available scopes including school
-    res.redirect(`http://localhost:5002/oauth/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=http://localhost:3000/callback&scope=name,email,profile_picture,student_number,dob,school`);
+    // Request all available scopes
+    res.redirect(`http://localhost:5002/oauth/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=http://localhost:3000/callback&scope=name,email,profile_picture,dob`);
 });
 
 app.get('/callback', async (req, res) => {

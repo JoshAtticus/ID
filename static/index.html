@@ -3,31 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign in - SCEAID</title>
+    <title>Sign in - JoshAtticusID</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --background-start-rgb: 10, 10, 10;
+            --background-end-rgb: 30, 30, 30;
+            --primary-glow: radial-gradient(rgba(138, 180, 248, 0.4), rgba(138, 180, 248, 0));
+            --secondary-glow: linear-gradient(to bottom right, rgba(138, 180, 248, 0), rgba(138, 180, 248, 0), rgba(138, 180, 248, 0.3));
+            --tile-start-rgb: 45, 46, 48;
+            --tile-end-rgb: 32, 33, 36;
+            --tile-border: 1px solid #5f6368;
+            --primary-color: #8ab4f8;
+            --secondary-color: #969ba1;
+            --text-color: #e8eaed;
+            --button-text-color: #202124;
+            --danger-color: #f28b82;
+        }
+
         body {
-            font-family: 'Google Sans','Noto Sans Myanmar UI',arial,sans-serif;
+            font-family: 'Inter', 'Google Sans', 'Noto Sans Myanmar UI', arial, sans-serif;
             margin: 0;
             padding: 0;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #fff;
+            background: linear-gradient(to bottom right, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        body::before,
+        body::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            filter: blur(45px);
+            transform: translate(-50%, -50%);
+            z-index: -1;
+        }
+
+        body::before {
+            background: var(--primary-glow);
+            width: 900px;
+            height: 360px;
+        }
+
+        body::after {
+            background: var(--secondary-glow);
+            width: 100%;
+            height: 100%;
         }
 
         .login-container {
             width: 448px;
             padding: 48px 40px 36px;
-            border: 1px solid #dadce0;
-            border-radius: 8px;
+            border: var(--tile-border);
+            border-radius: 12px;
             text-align: center;
+            background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb)));
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         h2 {
-            color: #202124;
-            font-size: 24px;
-            font-weight: 400;
+            color: var(--text-color);
+            font-size: 28px;
+            font-weight: 500;
             margin: 0 0 30px;
         }
 
@@ -45,17 +104,20 @@
         input {
             width: 100%;
             padding: 13px 15px;
-            border: 1px solid #dadce0;
-            border-radius: 4px;
+            border: 1px solid #5f6368;
+            border-radius: 8px;
             font-size: 16px;
-            color: #202124;
+            color: var(--text-color);
             outline: none;
             box-sizing: border-box;
+            background-color: #3c4043;
+            transition: all 0.3s ease;
         }
 
         input:focus {
-            border: 2px solid #1a73e8;
+            border: 2px solid var(--primary-color);
             padding: 12px 14px;
+            box-shadow: 0 0 10px rgba(138, 180, 248, 0.3);
         }
 
         label {
@@ -63,7 +125,7 @@
             left: 15px;
             top: 50%;
             transform: translateY(-50%);
-            color: #5f6368;
+            color: var(--secondary-color);
             transition: 0.2s ease all;
             pointer-events: none;
         }
@@ -71,47 +133,62 @@
         input:focus + label,
         input:not(:placeholder-shown) + label {
             top: 0;
-            background: white;
+            background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb)));
             padding: 0 4px;
             font-size: 12px;
-            color: #1a73e8;
+            color: var(--primary-color);
         }
 
         button {
-            background: #1a73e8;
-            color: white;
+            background: var(--primary-color);
+            color: var(--button-text-color);
             padding: 12px 24px;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             align-self: flex-end;
             text-transform: uppercase;
+            transition: all 0.3s ease;
         }
 
         button:hover {
-            background: #1557b0;
-            box-shadow: 0 1px 2px rgba(60,64,67,0.3);
+            box-shadow: 0 4px 15px 0 rgba(138, 180, 248, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px 0 rgba(138, 180, 248, 0.3);
         }
 
         .error-text {
-            color: #d93025;
+            color: var(--danger-color);
             font-size: 12px;
             margin-top: 8px;
             display: none;
+            animation: shake 0.3s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
         }
 
         input.error {
-            border-color: #d93025;
+            border-color: var(--danger-color);
+            animation: shake 0.3s;
         }
 
         input.error:focus {
-            border-color: #d93025;
+            border-color: var(--danger-color);
+            box-shadow: 0 0 10px rgba(242, 139, 130, 0.3);
         }
 
         input.error + label {
-            color: #d93025;
+            color: var(--danger-color);
         }
 
         .error-container {
@@ -120,55 +197,70 @@
             align-items: center;
             text-align: center;
             padding: 40px;
+            animation: fadeIn 0.5s ease-out;
         }
 
         .error-container h2 {
-            color: #202124;
+            color: var(--text-color);
             font-size: 24px;
             margin-bottom: 16px;
         }
 
         .error-container p {
-            color: #5f6368;
+            color: var(--secondary-color);
             font-size: 16px;
             margin-bottom: 24px;
         }
 
         .try-again-button {
-            background: #1a73e8;
-            color: white;
+            background: var(--primary-color);
+            color: var(--button-text-color);
             padding: 12px 24px;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        a {
+            color: var(--primary-color);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        a:hover {
+            text-decoration: underline;
+            color: #9ac0f9;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
         <h2>Sign in</h2>
-        <form id="userNumberForm">
-            <div class="input-group">
-                <input type="text" id="user_number" name="user_number" required placeholder=" ">
-                <label for="user_number">User Number</label>
-                <div class="error-text" id="user-error">Couldn't find your account</div>
+        <form id="loginForm">
+            <div id="emailStep">
+                <div class="input-group">
+                    <input type="email" id="email" name="email" required placeholder=" " autocapitalize="none" autocomplete="email">
+                    <label for="email">Email</label>
+                </div>
+                <div class="error-text" id="email-error"></div>
             </div>
+
+            <div id="passwordStep" style="display: none;">
+                <div class="input-group">
+                    <input type="password" id="password" name="password" required placeholder=" ">
+                    <label for="password">Password</label>
+                </div>
+                <div class="error-text" id="login-error"></div>
+            </div>
+
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <a href="/signup" style="color: #1a73e8; text-decoration: none;">Don't have an account?</a>
-                <button type="submit">Next</button>
+                <a href="/signup">Don't have an account?</a>
+                <button type="button" id="nextButton">Next</button>
+                <button type="submit" id="signInButton" style="display: none;">Sign in</button>
             </div>
-        </form>
-        
-        <form id="passwordForm" style="display: none;">
-            <div class="input-group">
-                <input type="password" id="password" name="password" required placeholder=" ">
-                <label for="password">Enter your password</label>
-                <div class="error-text" id="password-error">Wrong password. Try again.</div>
-            </div>
-            <a href="/signup" style="color: #1a73e8; text-decoration: none;">Don't have an account?</a>
-            <button type="submit">Sign in</button>
         </form>
     </div>
 
@@ -179,19 +271,20 @@
     </div>
 
     <script>
-        function showError(inputId, errorId, message) {
-            const input = document.getElementById(inputId);
-            const errorText = document.getElementById(errorId);
-            input.classList.add('error');
-            errorText.style.display = 'block';
+        function showError(message, elementId) {
+            const errorText = document.getElementById(elementId);
             errorText.textContent = message;
+            errorText.style.display = 'block';
         }
 
-        function clearError(inputId, errorId) {
-            const input = document.getElementById(inputId);
-            const errorText = document.getElementById(errorId);
-            input.classList.remove('error');
-            errorText.style.display = 'none';
+        function clearError() {
+            const errorTexts = document.querySelectorAll('.error-text');
+            errorTexts.forEach(errorText => {
+                errorText.textContent = '';
+                errorText.style.display = 'none';
+            });
+            document.getElementById('email').classList.remove('error');
+            document.getElementById('password').classList.remove('error');
         }
 
         function showSystemError() {
@@ -199,10 +292,15 @@
             document.getElementById('errorContainer').style.display = 'flex';
         }
 
-        document.getElementById('userNumberForm').addEventListener('submit', async function(event) {
+        document.getElementById('nextButton').addEventListener('click', async function(event) {
             event.preventDefault();
-            clearError('user_number', 'user-error');
-            const user_number = document.getElementById('user_number').value;
+            clearError();
+            const email = document.getElementById('email').value;
+
+            if (!email) {
+                showError("Please enter your email", "email-error");
+                return;
+            }
 
             try {
                 const response = await fetch('account/exists', {
@@ -210,26 +308,28 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ user_number })
+                    body: JSON.stringify({ email })
                 });
 
-                if (response.ok) {
-                    document.getElementById('userNumberForm').style.display = 'none';
-                    document.getElementById('passwordForm').style.display = 'flex';
-                } else if (response.status === 404) {
-                    showError('user_number', 'user-error', "Couldn't find your account");
+                const data = await response.json();
+                if (data.message === 'User found') {
+                    document.getElementById('emailStep').style.display = 'none';
+                    document.getElementById('passwordStep').style.display = 'block';
+                    document.getElementById('nextButton').style.display = 'none';
+                    document.getElementById('signInButton').style.display = 'block';
+                    document.getElementById('password').focus();
                 } else {
-                    showSystemError();
+                    showError("Couldn\'t find your account", "email-error");
                 }
             } catch (error) {
                 showSystemError();
             }
         });
 
-        document.getElementById('passwordForm').addEventListener('submit', async function(event) {
+        document.getElementById('loginForm').addEventListener('submit', async function(event) {
             event.preventDefault();
-            clearError('password', 'password-error');
-            const user_number = document.getElementById('user_number').value;
+            clearError();
+            const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
             try {
@@ -238,38 +338,26 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ user_number, password })
+                    body: JSON.stringify({ email, password })
                 });
 
                 const data = await response.json();
                 if (response.ok) {
                     localStorage.setItem('token', data.token);
                     
-                    // Check if there's a pending OAuth redirect
                     const oauthRedirect = localStorage.getItem('oauth_redirect');
                     if (oauthRedirect) {
-                        localStorage.removeItem('oauth_redirect'); // Clear the stored redirect
-                        window.location.href = oauthRedirect; // Redirect to OAuth screen
+                        localStorage.removeItem('oauth_redirect');
+                        window.location.href = oauthRedirect;
                     } else {
-                        window.location.href = '/dashboard'; // Normal dashboard redirect
+                        window.location.href = '/dashboard';
                     }
-                } else if (response.status === 401) {
-                    showError('password', 'password-error', 'Wrong password. Try again.');
                 } else {
-                    showSystemError();
+                    showError(data.message || 'Invalid email or password', 'login-error');
                 }
             } catch (error) {
                 showSystemError();
             }
-        });
-
-        // Clear errors when input changes
-        document.getElementById('user_number').addEventListener('input', () => {
-            clearError('user_number', 'user-error');
-        });
-
-        document.getElementById('password').addEventListener('input', () => {
-            clearError('password', 'password-error');
         });
     </script>
 </body>
