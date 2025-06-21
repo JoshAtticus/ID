@@ -815,9 +815,9 @@ def oauth_userinfo():
         response["email"] = user.email
     if "profile_picture" in scopes:
         if user.profile_picture:
-            response["profile_picture"] = f"http://localhost:5002/static/uploads/{user.profile_picture}"
+            response["profile_picture"] = f"https://id.joshattic.us/static/uploads/{user.profile_picture}"
         else:
-            response["profile_picture"] = "http://localhost:5002/static/uploads/default.png"
+            response["profile_picture"] = "https://id.joshattic.us/static/uploads/default.png"
     return jsonify(response)
 
 
