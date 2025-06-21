@@ -101,6 +101,10 @@
             text-align: left;
         }
 
+        .input-group + .input-group {
+            margin-top: 24px;
+        }
+
         input {
             width: 100%;
             padding: 13px 15px;
@@ -288,16 +292,33 @@
             <div class="progress-step" data-step="2">2</div>
             <div class="progress-step" data-step="3">3</div>
             <div class="progress-step" data-step="4">4</div>
+            <div class="progress-step" data-step="5">5</div>
         </div>
 
         <form id="signupForm">
-            <!-- Step 1: Name and DOB -->
+            <!-- Step 1: Name -->
             <div class="step active" data-step="1">
+                <h3 style="margin-bottom: 20px;">What's your name?</h3>
                 <div class="input-group">
                     <input type="text" id="full_name" name="full_name" required placeholder=" ">
                     <label for="full_name">Full Name</label>
                     <div class="error-text" id="name-error"></div>
                 </div>
+            </div>
+
+            <!-- Step 2: Email -->
+            <div class="step" data-step="2">
+                <h3 style="margin-bottom: 20px;">What's your email address?</h3>
+                <div class="input-group">
+                    <input type="email" id="email" name="email" required placeholder=" ">
+                    <label for="email">Email</label>
+                    <div class="error-text" id="email-error"></div>
+                </div>
+            </div>
+
+            <!-- Step 3: DOB -->
+            <div class="step" data-step="3">
+                <h3 style="margin-bottom: 20px;">When were you born?</h3>
                 <div class="input-group">
                     <input type="date" id="dob" name="dob" required placeholder=" ">
                     <label for="dob">Date of Birth</label>
@@ -305,17 +326,9 @@
                 </div>
             </div>
 
-            <!-- Step 2: Email -->
-            <div class="step" data-step="2">
-                <div class="input-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" required>
-                    <div class="error-text" id="email-error"></div>
-                </div>
-            </div>
-
-            <!-- Step 3: Password -->
-            <div class="step" data-step="3">
+            <!-- Step 4: Password -->
+            <div class="step" data-step="4">
+                <h3 style="margin-bottom: 20px;">Create a secure password</h3>
                 <div class="input-group">
                     <input type="password" id="password" name="password" required placeholder=" ">
                     <label for="password">Create password</label>
@@ -328,20 +341,20 @@
                 </div>
             </div>
 
-            <!-- Review Step -->
-            <div class="step" data-step="4">
-                <h3 style="margin-bottom: 20px;">Review Your Information</h3>
+            <!-- Step 5: Review -->
+            <div class="step" data-step="5">
+                <h3 style="margin-bottom: 20px;">Confirm your details are correct</h3>
                 <div class="review-item">
                     <div class="review-label">Full Name</div>
                     <div class="review-value" id="review-full-name"></div>
                 </div>
                 <div class="review-item">
-                    <div class="review-label">Date of Birth</div>
-                    <div class="review-value" id="review-dob"></div>
-                </div>
-                <div class="review-item">
                     <div class="review-label">Email</div>
                     <div class="review-value" id="review-email"></div>
+                </div>
+                <div class="review-item">
+                    <div class="review-label">Date of Birth</div>
+                    <div class="review-value" id="review-dob"></div>
                 </div>
             </div>
 
@@ -359,7 +372,7 @@
 
     <script>
         let currentStep = 1;
-        const totalSteps = 4;
+        const totalSteps = 5;
 
         function updateProgressBar() {
             const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
@@ -397,15 +410,60 @@
             switch(step) {
                 case 1:
                     const fullName = document.getElementById('full_name');
-                    const dob = document.getElementById('dob');
-                    return fullName.checkValidity() && dob.checkValidity();
+                    return fullName.checkValidity();
                 case 2:
                     const email = document.getElementById('email');
-                    return email.checkValidity();
+                    if (!email.checkValidity() || email.value.indexOf('@') === -1) {
+                        const errorElement = document.getElementById('email-error');
+                        errorElement.textContent = 'Please enter a valid email.';
+                        errorElement.style.display = 'block';
+                        email.classList.add('error');
+                        return false;
+                    } else {
+                        const errorElement = document.getElementById('email-error');
+                        errorElement.style.display = 'none';
+                        email.classList.remove('error');
+                        return true;
+                    }
                 case 3:
+                    const dobInput = document.getElementById('dob');
+                    const dobError = document.getElementById('dob-error');
+
+                    if (!dobInput.checkValidity()) {
+                        dobError.textContent = 'Please enter your date of birth.';
+                        dobError.style.display = 'block';
+                        dobInput.classList.add('error');
+                        return false;
+                    }
+
+                    const dob = new Date(dobInput.value);
+                    const thirteenYearsAgo = new Date();
+                    thirteenYearsAgo.setFullYear(thirteenYearsAgo.getFullYear() - 13);
+
+                    if (dob > thirteenYearsAgo) {
+                        dobError.textContent = 'You must be at least 13 years old to sign up.';
+                        dobError.style.display = 'block';
+                        dobInput.classList.add('error');
+                        return false;
+                    } else {
+                        dobError.style.display = 'none';
+                        dobInput.classList.remove('error');
+                    }
+                    return true;
+                case 4:
                     const password = document.getElementById('password');
                     const confirmPassword = document.getElementById('confirm_password');
-                    return password.value === confirmPassword.value && password.checkValidity();
+                    const errorElement = document.getElementById('confirm-password-error');
+                    if (password.value !== confirmPassword.value) {
+                        errorElement.textContent = 'Passwords do not match.';
+                        errorElement.style.display = 'block';
+                        confirmPassword.classList.add('error');
+                        return false;
+                    } else {
+                        errorElement.style.display = 'none';
+                        confirmPassword.classList.remove('error');
+                    }
+                    return password.checkValidity() && confirmPassword.checkValidity();
                 default:
                     return true;
             }
@@ -413,8 +471,8 @@
 
         function updateReview() {
             document.getElementById('review-full-name').textContent = document.getElementById('full_name').value;
-            document.getElementById('review-dob').textContent = document.getElementById('dob').value;
             document.getElementById('review-email').textContent = document.getElementById('email').value;
+            document.getElementById('review-dob').textContent = document.getElementById('dob').value;
         }
 
         document.getElementById('nextBtn').addEventListener('click', () => {
@@ -462,19 +520,6 @@
                 }
             } catch (error) {
                 console.error('Error:', error);
-            }
-        });
-
-        document.getElementById('email').addEventListener('input', function(e) {
-            const email = e.target.value;
-            const errorElement = document.getElementById('email-error');
-            if (email.indexOf('@') === -1) {
-                errorElement.textContent = 'Please enter a valid email.';
-                errorElement.style.display = 'block';
-                e.target.classList.add('error');
-            } else {
-                errorElement.style.display = 'none';
-                e.target.classList.remove('error');
             }
         });
 

@@ -189,6 +189,12 @@ def create_account():
 
     try:
         dob_date = datetime.strptime(dob, "%Y-%m-%d").date()
+        
+        today = datetime.now().date()
+        age = today.year - dob_date.year - ((today.month, today.day) < (dob_date.month, dob_date.day))
+        if age < 13:
+            return jsonify({"message": "You must be at least 13 years old to sign up."}), 400
+
         new_user = User(
             full_name=full_name,
             dob=dob_date,
