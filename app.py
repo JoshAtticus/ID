@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, redirect
 from flask_sqlalchemy import SQLAlchemy
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -603,7 +603,7 @@ def oauth_authorize():
         if state:
             params["state"] = state
         redirect_url = f"{redirect_uri}?{urlencode(params)}"
-        return jsonify({"redirect": redirect_url})
+        return redirect(redirect_url)
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "invalid_token", "error_description": "Token has expired"}), 401
     except jwt.InvalidTokenError:
