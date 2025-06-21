@@ -804,7 +804,9 @@ def oauth_userinfo():
         return jsonify({"error": "invalid_token"}), 401
     user = User.query.get(auth.user_id)
     scopes = auth.scopes.split()
-    response = {}
+    response = {
+        "sub": user.id
+    }
     if "name" in scopes:
         response["name"] = user.full_name
     if "dob" in scopes:
