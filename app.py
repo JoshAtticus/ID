@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "your_secret_key"
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///instance/users.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = "static/uploads"
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
@@ -1048,8 +1048,6 @@ def terms():
 # Create the database tables
 def init_db():
     with app.app_context():
-        # Print the absolute path to the database file for debugging
-        print('Database file will be at:', os.path.abspath('users.db'))
         # Create tables first
         db.create_all()
         
