@@ -295,7 +295,8 @@
                     },
                     body: JSON.stringify({
                         client_id: params.get('client_id'),
-                        scope: params.get('scope')
+                        scope: params.get('scope'),
+                        redirect_uri: params.get('redirect_uri')
                     })
                 });
 
