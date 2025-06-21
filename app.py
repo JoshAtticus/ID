@@ -911,6 +911,16 @@ def authorize_oauth_app():
     return send_from_directory("static", "authorize.html")
 
 
+@app.route("/privacy")
+def privacy():
+    return send_from_directory("static", "privacy.html")
+
+
+@app.route("/terms")
+def terms():
+    return send_from_directory("static", "terms.html")
+
+
 # Create the database tables
 def init_db():
     with app.app_context():
