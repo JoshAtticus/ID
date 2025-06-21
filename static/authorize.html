@@ -224,100 +224,102 @@
     </div>
 
     <script>
-        // Add this function at the start of the script section
-        function checkLoginAndRedirect() {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                // Save current URL to localStorage to redirect back after login
-                localStorage.setItem('oauth_redirect', window.location.href);
-                window.location.href = '/';
-                return false;
-            }
-            return true;
+    // This function is fine as-is
+    function checkLoginAndRedirect() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            localStorage.setItem('oauth_redirect', window.location.href);
+            window.location.href = '/';
+            return false;
+        }
+        return true;
+    }
+
+    // This function is also fine as-is
+    async function loadAppInfo() {
+        if (!checkLoginAndRedirect()) {
+            return;
         }
 
-        // Modify the loadAppInfo function to check login first
-        async function loadAppInfo() {
-            if (!checkLoginAndRedirect()) {
-                return;
-            }
+        const params = new URLSearchParams(window.location.search);
+        const response = await fetch(`/oauth/app-info?client_id=${params.get('client_id')}`);
+        const app = await response.json();
 
-            const params = new URLSearchParams(window.location.search);
-            const response = await fetch(`/oauth/app-info?client_id=${params.get('client_id')}`);
-            const app = await response.json();
+        const appNameContainer = document.createElement('span');
+        appNameContainer.id = 'app-name-container';
+        appNameContainer.innerHTML = `
+            ${app.name}
+            ${app.verified ? `
+                <span class="verified-badge">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                </span>
+            ` : ''}
+        `;
 
-            // Create app name container with verified badge if applicable
-            const appNameContainer = document.createElement('span');
-            appNameContainer.id = 'app-name-container';
-            appNameContainer.innerHTML = `
-                ${app.name}
-                ${app.verified ? `
-                    <span class="verified-badge">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                        </svg>
-                    </span>
-                ` : ''}
+        const appInfo = document.getElementById('app-info');
+        appInfo.innerHTML = `<p>The application <strong>${appNameContainer.outerHTML}</strong> is requesting access to your JoshAtticusID.</p>`;
+
+        const scopeItems = document.getElementById('scope-items');
+        const scopes = params.get('scope').split(' ');
+
+        scopes.forEach(scope => {
+            const div = document.createElement('div');
+            div.className = 'scope-item';
+            div.innerHTML = `
+                <input type="checkbox" id="${scope}" checked disabled>
+                <label for="${scope}">${app.scope_descriptions[scope]}</label>
             `;
+            scopeItems.appendChild(div);
+        });
+    }
 
-            const appInfo = document.getElementById('app-info');
-            appInfo.innerHTML = `<p>The application <strong>${appNameContainer.outerHTML}</strong> is requesting access to your JoshAtticusID.</p>`;
+    // --- THIS IS THE CORRECTED FUNCTION ---
+    async function authorize() {
+        if (!checkLoginAndRedirect()) {
+            return;
+        }
 
-            const scopeItems = document.getElementById('scope-items');
-            const scopes = params.get('scope').split(' ');
-
-            scopes.forEach(scope => {
-                const div = document.createElement('div');
-                div.className = 'scope-item';
-                div.innerHTML = `
-                    <input type="checkbox" id="${scope}" checked disabled>
-                    <label for="${scope}">${app.scope_descriptions[scope]}</label>
-                `;
-                scopeItems.appendChild(div);
+        const params = new URLSearchParams(window.location.search);
+        const token = localStorage.getItem('token');
+        
+        try {
+            // Changed the endpoint from /oauth/approve to /oauth/authorize
+            const response = await fetch('/oauth/authorize', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Your old code was correct, but make sure the header value is the token string itself, not 'Bearer ' + token
+                    'Authorization': token 
+                },
+                body: JSON.stringify({
+                    client_id: params.get('client_id'),
+                    scope: params.get('scope'),
+                    redirect_uri: params.get('redirect_uri'),
+                    state: params.get('state') // <-- THE FIX: Add the state parameter
+                })
             });
-        }
 
-        // Modify the authorize function to check login first
-        async function authorize() {
-            if (!checkLoginAndRedirect()) {
-                return;
+            // The browser will automatically follow the redirect from the server.
+            // If the response is 'redirected', it means the server successfully sent a redirect response.
+            if (response.redirected) {
+                // The browser is already navigating, but we can redirect manually as a fallback.
+                window.location.href = response.url;
+            } else {
+                // Handle cases where the server returns an error instead of a redirect
+                const error = await response.json();
+                throw new Error(error.error_description || 'Authorization failed');
             }
 
-            const params = new URLSearchParams(window.location.search);
-            const token = localStorage.getItem('token');
-            
-            try {
-                const response = await fetch('/oauth/approve', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': token  // Make sure the token exists and is sent as-is
-                    },
-                    body: JSON.stringify({
-                        client_id: params.get('client_id'),
-                        scope: params.get('scope'),
-                        redirect_uri: params.get('redirect_uri')
-                    })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || 'Authorization failed');
-                }
-
-                const data = await response.json();
-                if (data.code) {
-                    window.location.href = `${data.redirect_uri}?code=${data.code}`;
-                }
-            } catch (error) {
-                console.error('Authorization error:', error);
-                alert('Authorization failed. Please try again or login.');
-                window.location.href = '/'; // Redirect to login if token is invalid
-            }
+        } catch (error) {
+            console.error('Authorization error:', error);
+            alert('An error occurred during authorization. Please try again.');
         }
+    }
 
-        loadAppInfo();
-    </script>
+    loadAppInfo();
+</script>
 </body>
 
 </html>
