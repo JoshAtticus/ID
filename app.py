@@ -100,6 +100,20 @@ class OAuthAuthorization(db.Model):
     last_used = db.Column(db.DateTime(timezone=True))
 
 
+class OAuthCode(db.Model):
+    __tablename__ = "oauth_code"
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    app_id = db.Column(db.String(36), db.ForeignKey("oauth_app.id"), nullable=False)
+    code = db.Column(db.String(64), unique=True, nullable=False)
+    redirect_uri = db.Column(db.String(500), nullable=False)
+    scopes = db.Column(db.String(500), nullable=False)
+    state = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    used = db.Column(db.Boolean, default=False)
+    expires_at = db.Column(db.DateTime(timezone=True))
+
+
 # Add this utility function after the model definitions
 def update_session_activity(token):
     """Update last_active timestamp for the session associated with the token"""
@@ -503,44 +517,101 @@ def end_session():
         return jsonify({"message": "Invalid token"}), 401
 
 
-@app.route("/oauth/authorize", methods=["GET"])
+@app.route("/oauth/authorize", methods=["GET", "POST"])
 def oauth_authorize():
-    client_id = request.args.get("client_id")
-    redirect_uri = request.args.get("redirect_uri")
-    scope = request.args.get("scope", "")
+    if request.method == "GET":
+        client_id = request.args.get("client_id")
+        redirect_uri = request.args.get("redirect_uri")
+        scope = request.args.get("scope", "")
+        state = request.args.get("state")
 
-    app = OAuthApp.query.filter_by(client_id=client_id).first()
-    
-    if not app:
-        return jsonify({
-            "error": "invalid_client",
-            "details": "No application found with this client ID"
-        }), 400
-        
-    try:
-        registered_uri = urlparse(app.redirect_uri)
-        request_uri = urlparse(redirect_uri)
-
-        # If the registered URI has no path, any path on the same domain is allowed.
-        # Otherwise, the path must be the same or a subpath.
-        if not (registered_uri.scheme == request_uri.scheme and
-                registered_uri.netloc == request_uri.netloc and
-                (not registered_uri.path or request_uri.path.startswith(registered_uri.path))):
+        oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
+        if not oauth_app:
             return jsonify({
-                "error": "invalid_redirect_uri",
-                "details": f"The redirect URI must be on the same domain and path as the registered one. Expected: {app.redirect_uri}, got: {redirect_uri}"
+                "error": "invalid_client",
+                "error_description": "No application found with this client ID"
             }), 400
-    except ValueError:
-        return jsonify({"error": "invalid_redirect_uri", "details": "Malformed redirect URI"}), 400
+        try:
+            registered_uri = urlparse(oauth_app.redirect_uri)
+            request_uri = urlparse(redirect_uri)
+            if not (registered_uri.scheme == request_uri.scheme and
+                    registered_uri.netloc == request_uri.netloc and
+                    (not registered_uri.path or request_uri.path.startswith(registered_uri.path))):
+                return jsonify({
+                    "error": "invalid_redirect_uri",
+                    "error_description": f"The redirect URI must be on the same domain and path as the registered one. Expected: {oauth_app.redirect_uri}, got: {redirect_uri}"
+                }), 400
+        except ValueError:
+            return jsonify({"error": "invalid_redirect_uri", "error_description": "Malformed redirect URI"}), 400
 
-    requested_scopes = scope.split(" ")
-    if not all(s in OAUTH_SCOPES for s in requested_scopes):
-        return jsonify({
-            "error": "invalid_scope",
-            "details": f"Invalid scopes: {[s for s in requested_scopes if s not in OAUTH_SCOPES]}"
-        }), 400
+        requested_scopes = scope.split()
+        if not all(s in OAUTH_SCOPES for s in requested_scopes):
+            return jsonify({
+                "error": "invalid_scope",
+                "error_description": f"Invalid scopes: {[s for s in requested_scopes if s not in OAUTH_SCOPES]}"
+            }), 400
 
-    return send_from_directory("static", "authorize.html")
+        # Render consent page (authorize.html) with params
+        return send_from_directory("static", "authorize.html")
+
+    # POST: User submits consent (must be authenticated)
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"error": "invalid_request", "error_description": "Token is missing"}), 401
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        if not user:
+            return jsonify({"error": "invalid_request", "error_description": "User not found"}), 404
+        client_id = request.json.get("client_id")
+        scope = request.json.get("scope", "")
+        redirect_uri = request.json.get("redirect_uri")
+        state = request.json.get("state")
+        oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
+        if not oauth_app:
+            return jsonify({"error": "invalid_client"}), 400
+        # Validate redirect_uri
+        try:
+            registered_uri = urlparse(oauth_app.redirect_uri)
+            request_uri = urlparse(redirect_uri)
+            if not (registered_uri.scheme == request_uri.scheme and
+                    registered_uri.netloc == request_uri.netloc and
+                    (not registered_uri.path or request_uri.path.startswith(registered_uri.path))):
+                return jsonify({"error": "invalid_redirect_uri"}), 400
+        except ValueError:
+            return jsonify({"error": "invalid_redirect_uri"}), 400
+        requested_scopes = scope.split()
+        if not all(s in OAUTH_SCOPES for s in requested_scopes):
+            return jsonify({"error": "invalid_scope"}), 400
+        # Issue authorization code
+        code = secrets.token_urlsafe(32)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+        oauth_code = OAuthCode(
+            user_id=user.id,
+            app_id=oauth_app.id,
+            code=code,
+            redirect_uri=redirect_uri,
+            scopes=scope,
+            state=state,
+            expires_at=expires_at
+        )
+        db.session.add(oauth_code)
+        db.session.commit()
+        # Redirect to client with code and state
+        from urllib.parse import urlencode
+        params = {"code": code}
+        if state:
+            params["state"] = state
+        redirect_url = f"{redirect_uri}?{urlencode(params)}"
+        return jsonify({"redirect": redirect_url})
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "invalid_token", "error_description": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "invalid_token", "error_description": "Invalid token"}), 401
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in OAuth authorize: {str(e)}")
+        return jsonify({"error": "server_error"}), 500
 
 @app.route("/oauth/app-info", methods=["GET"])
 def get_oauth_app_info():
@@ -600,7 +671,7 @@ def oauth_approve():
             return jsonify({"error": "invalid_redirect_uri", "details": "Malformed redirect URI"}), 400
 
         # Validate scopes
-        requested_scopes = scope.split(" ")
+        requested_scopes = scope.split()
         if not all(s in OAUTH_SCOPES for s in requested_scopes):
             return jsonify({"error": "invalid_scope"}), 400
 
@@ -643,28 +714,55 @@ def oauth_approve():
 
 @app.route("/oauth/token", methods=["POST"])
 def oauth_token():
-    auth_code = request.form.get("code")
+    grant_type = request.form.get("grant_type")
+    code = request.form.get("code")
     client_id = request.form.get("client_id")
     client_secret = request.form.get("client_secret")
+    redirect_uri = request.form.get("redirect_uri")
 
-    app = OAuthApp.query.filter_by(
-        client_id=client_id, client_secret=client_secret
-    ).first()
-    if not app:
+    if grant_type != "authorization_code":
+        return jsonify({"error": "unsupported_grant_type"}), 400
+
+    oauth_app = OAuthApp.query.filter_by(client_id=client_id, client_secret=client_secret).first()
+    if not oauth_app:
         return jsonify({"error": "invalid_client"}), 401
 
-    auth = OAuthAuthorization.query.filter_by(id=auth_code, app_id=app.id).first()
-    if not auth:
+    oauth_code = OAuthCode.query.filter_by(code=code, app_id=oauth_app.id).first()
+    if not oauth_code or oauth_code.used:
         return jsonify({"error": "invalid_grant"}), 400
+    if oauth_code.expires_at < datetime.now(timezone.utc):
+        return jsonify({"error": "invalid_grant", "error_description": "Code expired"}), 400
+    if oauth_code.redirect_uri != redirect_uri:
+        return jsonify({"error": "invalid_grant", "error_description": "Redirect URI mismatch"}), 400
 
-    access_token = secrets.token_urlsafe(48)
-    auth.access_token = access_token
-    auth.last_used = datetime.now(timezone.utc)
+    # Mark code as used
+    oauth_code.used = True
     db.session.commit()
 
-    return jsonify(
-        {"access_token": access_token, "token_type": "Bearer", "scope": auth.scopes}
-    )
+    # Issue access token
+    access_token = secrets.token_urlsafe(48)
+    # Store in OAuthAuthorization (create or update)
+    auth = OAuthAuthorization.query.filter_by(user_id=oauth_code.user_id, app_id=oauth_app.id).first()
+    if not auth:
+        auth = OAuthAuthorization(
+            user_id=oauth_code.user_id,
+            app_id=oauth_app.id,
+            scopes=oauth_code.scopes,
+            access_token=access_token
+        )
+        db.session.add(auth)
+    else:
+        auth.scopes = oauth_code.scopes
+        auth.access_token = access_token
+        auth.last_used = datetime.now(timezone.utc)
+    db.session.commit()
+
+    return jsonify({
+        "access_token": access_token,
+        "token_type": "Bearer",
+        "expires_in": 3600,
+        "scope": oauth_code.scopes,
+    })
 
 
 @app.route("/oauth/userinfo", methods=["GET"])
@@ -672,15 +770,12 @@ def oauth_userinfo():
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return jsonify({"error": "invalid_token"}), 401
-
     access_token = auth_header.split(" ")[1]
     auth = OAuthAuthorization.query.filter_by(access_token=access_token).first()
     if not auth:
         return jsonify({"error": "invalid_token"}), 401
-
     user = User.query.get(auth.user_id)
-    scopes = auth.scopes.split(",")
-
+    scopes = auth.scopes.split()
     response = {}
     if "name" in scopes:
         response["name"] = user.full_name
@@ -693,7 +788,6 @@ def oauth_userinfo():
             response["profile_picture"] = f"http://localhost:5002/static/uploads/{user.profile_picture}"
         else:
             response["profile_picture"] = "http://localhost:5002/static/uploads/default.png"
-
     return jsonify(response)
 
 
