@@ -1048,6 +1048,8 @@ def terms():
 # Create the database tables
 def init_db():
     with app.app_context():
+        # Print the absolute path to the database file for debugging
+        print('Database file will be at:', os.path.abspath('users.db'))
         # Create tables first
         db.create_all()
         
