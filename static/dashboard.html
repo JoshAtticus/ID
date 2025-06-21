@@ -512,16 +512,6 @@
                     <h3>Recent Login History</h3>
                     <div id="loginHistory"></div>
                 </div>
-                <div class="security-section">
-                    <h3>Password Security</h3>
-                    <div class="password-check-container">
-                        <div class="input-group">
-                            <input type="password" id="passwordCheck" placeholder="Enter password to check">
-                            <button onclick="checkPassword()">Check Password</button>
-                        </div>
-                        <div id="passwordCheckResult" style="margin-top: 10px;"></div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -888,39 +878,6 @@
         // Add event listener for security tab
         document.querySelector('[data-tab="security"]').addEventListener('click', fetchSecurityData);
 
-        async function checkPassword() {
-            const password = document.getElementById('passwordCheck').value;
-            const resultDiv = document.getElementById('passwordCheckResult');
-
-            if (!password) {
-                resultDiv.innerHTML = '<span style="color: #d93025;">Please enter a password</span>';
-                return;
-            }
-
-            try {
-                const response = await fetch('/account/check-password', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': localStorage.getItem('token'),
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ password })
-                });
-
-                const data = await response.json();
-
-                if (data.is_common) {
-                    resultDiv.innerHTML = `<span style="color: #d93025;">${data.message}</span>`;
-                } else {
-                    resultDiv.innerHTML = `<span style="color: #188038;">${data.message}</span>`;
-                }
-            } catch (error) {
-                resultDiv.innerHTML = '<span style="color: #d93025;">Error checking password</span>';
-            }
-
-            // Clear the password input
-            document.getElementById('passwordCheck').value = '';
-        }
 
         async function loadAuthorizedApps() {
             try {
