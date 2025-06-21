@@ -9,6 +9,7 @@ import uuid
 import pathlib
 import secrets
 from sqlalchemy import text  # Add this import at the top with other imports
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "your_secret_key"
@@ -516,13 +517,23 @@ def oauth_authorize():
             "details": "No application found with this client ID"
         }), 400
         
-    if app.redirect_uri != redirect_uri:
-        return jsonify({
-            "error": "invalid_redirect_uri",
-            "details": f"Expected {app.redirect_uri}, got {redirect_uri}"
-        }), 400
+    try:
+        registered_uri = urlparse(app.redirect_uri)
+        request_uri = urlparse(redirect_uri)
 
-    requested_scopes = scope.split(",")
+        # If the registered URI has no path, any path on the same domain is allowed.
+        # Otherwise, the path must be the same or a subpath.
+        if not (registered_uri.scheme == request_uri.scheme and
+                registered_uri.netloc == request_uri.netloc and
+                (not registered_uri.path or request_uri.path.startswith(registered_uri.path))):
+            return jsonify({
+                "error": "invalid_redirect_uri",
+                "details": f"The redirect URI must be on the same domain and path as the registered one. Expected: {app.redirect_uri}, got: {redirect_uri}"
+            }), 400
+    except ValueError:
+        return jsonify({"error": "invalid_redirect_uri", "details": "Malformed redirect URI"}), 400
+
+    requested_scopes = scope.split(" ")
     if not all(s in OAUTH_SCOPES for s in requested_scopes):
         return jsonify({
             "error": "invalid_scope",
@@ -570,7 +581,7 @@ def oauth_approve():
             return jsonify({"error": "invalid_client"}), 400
 
         # Validate scopes
-        requested_scopes = scope.split(",")
+        requested_scopes = scope.split(" ")
         if not all(s in OAUTH_SCOPES for s in requested_scopes):
             return jsonify({"error": "invalid_scope"}), 400
 

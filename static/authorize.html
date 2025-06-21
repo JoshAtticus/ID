@@ -264,7 +264,7 @@
             appInfo.innerHTML = `<p>The application <strong>${appNameContainer.outerHTML}</strong> is requesting access to your JoshAtticusID.</p>`;
 
             const scopeItems = document.getElementById('scope-items');
-            const scopes = params.get('scope').split(',');
+            const scopes = params.get('scope').split(' ');
 
             scopes.forEach(scope => {
                 const div = document.createElement('div');
