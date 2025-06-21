@@ -575,10 +575,29 @@ def oauth_approve():
         # Get OAuth parameters
         client_id = request.json.get("client_id")
         scope = request.json.get("scope", "")
+        redirect_uri = request.json.get("redirect_uri")
 
         oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
         if not oauth_app:
             return jsonify({"error": "invalid_client"}), 400
+
+        # Validate redirect_uri
+        if not redirect_uri:
+            return jsonify({"error": "invalid_request", "details": "Missing redirect_uri"}), 400
+        
+        try:
+            registered_uri = urlparse(oauth_app.redirect_uri)
+            request_uri = urlparse(redirect_uri)
+
+            if not (registered_uri.scheme == request_uri.scheme and
+                    registered_uri.netloc == request_uri.netloc and
+                    (not registered_uri.path or request_uri.path.startswith(registered_uri.path))):
+                return jsonify({
+                    "error": "invalid_redirect_uri",
+                    "details": f"The redirect URI must be on the same domain and path as the registered one. Expected: {oauth_app.redirect_uri}, got: {redirect_uri}"
+                }), 400
+        except ValueError:
+            return jsonify({"error": "invalid_redirect_uri", "details": "Malformed redirect URI"}), 400
 
         # Validate scopes
         requested_scopes = scope.split(" ")
@@ -610,7 +629,7 @@ def oauth_approve():
 
         return jsonify({
             "code": auth.id,
-            "redirect_uri": oauth_app.redirect_uri
+            "redirect_uri": redirect_uri
         })
 
     except jwt.ExpiredSignatureError:
