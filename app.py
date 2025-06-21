@@ -758,7 +758,11 @@ def oauth_token():
     oauth_code = OAuthCode.query.filter_by(code=code, app_id=oauth_app.id).first()
     if not oauth_code or oauth_code.used:
         return jsonify({"error": "invalid_grant"}), 400
-    if oauth_code.expires_at < datetime.now(timezone.utc):
+    # Ensure expires_at is timezone-aware before comparison
+    expires_at = oauth_code.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
         return jsonify({"error": "invalid_grant", "error_description": "Code expired"}), 400
     if oauth_code.redirect_uri != redirect_uri:
         return jsonify({"error": "invalid_grant", "error_description": "Redirect URI mismatch"}), 400
