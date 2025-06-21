@@ -1,2 +1,2 @@
-# SCEAID
-Quick account system for SCEA
+# JoshAtticusID
+One account for everything JoshAtticus
