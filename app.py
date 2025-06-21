@@ -948,4 +948,5 @@ def init_db():
 
 if __name__ == "__main__":
     init_db()  # Initialize the database
+    print("\033[91mYOU ARE RUNNING THE SERVER IN DEBUG MODE! DO NOT USE THIS IN PRODUCTION!\033[0m")
     app.run(debug=True, port=5002)

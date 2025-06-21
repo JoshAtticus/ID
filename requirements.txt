@@ -1,4 +1,10 @@
+click
+colorama
 Flask
 Flask-SQLAlchemy
+greenlet
+gunicorn
+itsdangerous
+Jinja2
 PyJWT
 Werkzeug
