@@ -350,11 +350,26 @@
         .app-info h4 {
             display: inline-flex;
             align-items: center;
+            margin: 0 0 8px 0;
         }
 
         .app-info p {
             color: var(--secondary-color);
             font-size: 14px;
+            margin: 8px 0;
+        }
+
+        .app-card {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 16px;
+        }
+
+        .app-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 16px;
         }
 
         .app-link {
@@ -363,6 +378,8 @@
             font-size: 14px;
             font-weight: 500;
             transition: color 0.3s ease;
+            display: inline-flex;
+            align-items: center;
         }
 
         .app-link:hover {
@@ -373,7 +390,7 @@
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            margin-top: 8px;
+            margin-top: 12px;
         }
 
         .scope-tag {
@@ -920,7 +937,12 @@
                             </div>
                         </div>
                         <div class="app-actions">
-                            ${app.website ? `<a href="${app.website}" target="_blank" class="app-link">Visit Site</a>` : ''}
+                            ${app.website ? `<a href="${app.website}" target="_blank" class="app-link">
+                                Visit Site
+                                <svg style="margin-left: 4px; width: 14px; height: 14px;" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M5 3c-1.093 0-2 .907-2 2v14c0 1.093.907 2 2 2h14c1.093 0 2-.907 2-2v-7h-2v7H5V5h7V3H5zm9 0v2h3.586l-9.293 9.293 1.414 1.414L19 6.414V10h2V3h-7z"/>
+                                </svg>
+                            </a>` : ''}
                             <button onclick="revokeApp('${app.id}')" class="revoke-button">Revoke Access</button>
                         </div>
                     </div>
