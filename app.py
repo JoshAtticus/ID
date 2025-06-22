@@ -849,7 +849,7 @@ def get_authorized_apps():
             if oauth_app:
                 apps.append(
                     {
-                        "id": auth.id,
+                        "id": oauth_app.client_id,
                         "name": oauth_app.name,
                         "website": oauth_app.website,
                         "verified": oauth_app.verified,
@@ -857,7 +857,9 @@ def get_authorized_apps():
                         "last_used": (
                             auth.last_used.isoformat() if auth.last_used else None
                         ),
-                        "created_at": auth.created_at.isoformat(),
+                        "created_at": (
+                            auth.created_at.isoformat() if auth.created_at else None
+                        ),
                     }
                 )
 
@@ -881,12 +883,18 @@ def revoke_app():
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
         user = User.query.get(data["user_id"])
-        app_id = request.json.get("app_id")
+        client_id = request.json.get("app_id")
 
         if not user:
             return jsonify({"message": "User not found"}), 404
 
-        auth = OAuthAuthorization.query.filter_by(id=app_id, user_id=user.id).first()
+        oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
+        if not oauth_app:
+            return jsonify({"message": "Application not found"}), 404
+
+        auth = OAuthAuthorization.query.filter_by(
+            app_id=oauth_app.id, user_id=user.id
+        ).first()
 
         if not auth:
             return jsonify({"message": "Authorization not found"}), 404
