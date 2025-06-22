@@ -238,7 +238,8 @@
 </head>
 <body>
     <div class="login-container">
-        <h2>Sign in</h2>
+        <h2>Sign in to your JoshAtticusID</h2>
+        <p id="subtitle" style="margin-top: -20px">Your one ID for everything JoshAtticus & more</p>
         <form id="loginForm">
             <div id="emailStep">
                 <div class="input-group">
@@ -271,6 +272,18 @@
     </div>
 
     <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const subtitle = document.getElementById('subtitle');
+            const params = new URLSearchParams(window.location.search);
+            const reason = params.get('reason');
+
+            if (reason === 'invalid_token') {
+                subtitle.textContent = 'Please sign in to access that page';
+            } else if (reason === 'expired_token') {
+                subtitle.textContent = 'You were signed out, please sign back in';
+            }
+        });
+
         function showError(message, elementId) {
             const errorText = document.getElementById(elementId);
             errorText.textContent = message;
@@ -345,8 +358,13 @@
                 if (response.ok) {
                     localStorage.setItem('token', data.token);
                     
+                    const params = new URLSearchParams(window.location.search);
+                    const next = params.get('next');
                     const oauthRedirect = localStorage.getItem('oauth_redirect');
-                    if (oauthRedirect) {
+
+                    if (next) {
+                        window.location.href = next;
+                    } else if (oauthRedirect) {
                         localStorage.removeItem('oauth_redirect');
                         window.location.href = oauthRedirect;
                     } else {

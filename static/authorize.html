@@ -224,102 +224,108 @@
     </div>
 
     <script>
-    // This function is fine as-is
-    function checkLoginAndRedirect() {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            localStorage.setItem('oauth_redirect', window.location.href);
-            window.location.href = '/';
-            return false;
-        }
-        return true;
-    }
-
-    // This function is also fine as-is
-    async function loadAppInfo() {
-        if (!checkLoginAndRedirect()) {
-            return;
-        }
-
-        const params = new URLSearchParams(window.location.search);
-        const response = await fetch(`/oauth/app-info?client_id=${params.get('client_id')}`);
-        const app = await response.json();
-
-        const appNameContainer = document.createElement('span');
-        appNameContainer.id = 'app-name-container';
-        appNameContainer.innerHTML = `
-            ${app.name}
-            ${app.verified ? `
-                <span class="verified-badge">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                    </svg>
-                </span>
-            ` : ''}
-        `;
-
-        const appInfo = document.getElementById('app-info');
-        appInfo.innerHTML = `<p>The application <strong>${appNameContainer.outerHTML}</strong> is requesting access to your JoshAtticusID.</p>`;
-
-        const scopeItems = document.getElementById('scope-items');
-        const scopes = params.get('scope').split(' ');
-
-        scopes.forEach(scope => {
-            const div = document.createElement('div');
-            div.className = 'scope-item';
-            div.innerHTML = `
-                <input type="checkbox" id="${scope}" checked disabled>
-                <label for="${scope}">${app.scope_descriptions[scope]}</label>
-            `;
-            scopeItems.appendChild(div);
-        });
-    }
-
-    // --- THIS IS THE CORRECTED FUNCTION ---
-    async function authorize() {
-        if (!checkLoginAndRedirect()) {
-            return;
-        }
-
-        const params = new URLSearchParams(window.location.search);
-        const token = localStorage.getItem('token');
-        
-        try {
-            // Changed the endpoint from /oauth/approve to /oauth/authorize
-            const response = await fetch('/oauth/authorize', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    // Your old code was correct, but make sure the header value is the token string itself, not 'Bearer ' + token
-                    'Authorization': token 
-                },
-                body: JSON.stringify({
-                    client_id: params.get('client_id'),
-                    scope: params.get('scope'),
-                    redirect_uri: params.get('redirect_uri'),
-                    state: params.get('state') // <-- THE FIX: Add the state parameter
-                })
-            });
-
-            // The browser will automatically follow the redirect from the server.
-            // If the response is 'redirected', it means the server successfully sent a redirect response.
-            if (response.redirected) {
-                // The browser is already navigating, but we can redirect manually as a fallback.
-                window.location.href = response.url;
-            } else {
-                // Handle cases where the server returns an error instead of a redirect
-                const error = await response.json();
-                throw new Error(error.error_description || 'Authorization failed');
+        async function verifyTokenAndLoad() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = `/?reason=invalid_token&next=${encodeURIComponent(window.location.href)}`;
+                return;
             }
 
-        } catch (error) {
-            console.error('Authorization error:', error);
-            alert('An error occurred during authorization. Please try again.');
-        }
-    }
+            try {
+                const verifyResponse = await fetch('/account/details', {
+                    headers: { 'Authorization': token }
+                });
 
-    loadAppInfo();
-</script>
+                if (!verifyResponse.ok) {
+                    localStorage.removeItem('token');
+                    window.location.href = `/?reason=expired_token&next=${encodeURIComponent(window.location.href)}`;
+                    return;
+                }
+
+                // Token is valid, proceed to load app info.
+                const params = new URLSearchParams(window.location.search);
+                const appInfoResponse = await fetch(`/oauth/app-info?client_id=${params.get('client_id')}`);
+                const app = await appInfoResponse.json();
+
+                const appNameContainer = document.createElement('span');
+                appNameContainer.id = 'app-name-container';
+                appNameContainer.innerHTML = `
+                    ${app.name}
+                    ${app.verified ? `
+                        <span class="verified-badge">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            </svg>
+                        </span>
+                    ` : ''}
+                `;
+
+                const appInfo = document.getElementById('app-info');
+                appInfo.innerHTML = `<p>The application <strong>${appNameContainer.outerHTML}</strong> is requesting access to your JoshAtticusID.</p>`;
+
+                const scopeItems = document.getElementById('scope-items');
+                const scopes = params.get('scope').split(' ');
+
+                scopes.forEach(scope => {
+                    const div = document.createElement('div');
+                    div.className = 'scope-item';
+                    div.innerHTML = `
+                        <input type="checkbox" id="${scope}" checked disabled>
+                        <label for="${scope}">${app.scope_descriptions[scope]}</label>
+                    `;
+                    scopeItems.appendChild(div);
+                });
+
+            } catch (error) {
+                console.error('Error loading page:', error);
+                alert('An error occurred while loading application details. Please try again.');
+            }
+        }
+
+        async function authorize() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = `/?reason=invalid_token&next=${encodeURIComponent(window.location.href)}`;
+                return;
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            
+            try {
+                const response = await fetch('/oauth/authorize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token 
+                    },
+                    body: JSON.stringify({
+                        client_id: params.get('client_id'),
+                        scope: params.get('scope'),
+                        redirect_uri: params.get('redirect_uri'),
+                        state: params.get('state')
+                    })
+                });
+
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    const errorData = await response.json();
+                    if (response.status === 401) { // Unauthorized, likely expired token
+                        localStorage.removeItem('token');
+                        window.location.href = `/?reason=expired_token&next=${encodeURIComponent(window.location.href)}`;
+                        return;
+                    }
+                    throw new Error(errorData.error_description || 'Authorization failed');
+                }
+
+            } catch (error) {
+                console.error('Authorization error:', error);
+                alert('An error occurred during authorization. Please try again.');
+            }
+        }
+
+        verifyTokenAndLoad();
+    </script>
 </body>
 
 </html>

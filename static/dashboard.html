@@ -656,7 +656,7 @@
         // Check if user is logged in
         const token = localStorage.getItem('token');
         if (!token) {
-            window.location.href = '/';
+            window.location.href = `/?reason=invalid_token&next=${encodeURIComponent(window.location.pathname)}`;
         }
 
         // Fetch user details
@@ -709,7 +709,7 @@
                 await fetchUserDetails(); // Call fetchUserDetails after verification
             } catch (error) {
                 localStorage.removeItem('token');
-                window.location.href = '/';
+                window.location.href = `/?reason=expired_token&next=${encodeURIComponent(window.location.pathname)}`;
             }
         }
 

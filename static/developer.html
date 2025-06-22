@@ -248,7 +248,7 @@
 
         async function verifyTokenAndLoad() {
             if (!token) {
-                window.location.href = '/';
+                window.location.href = `/?reason=invalid_token&next=${encodeURIComponent(window.location.pathname)}`;
                 return;
             }
 
@@ -260,7 +260,7 @@
                 if (!response.ok) {
                     // Token is invalid or expired, or another error
                     localStorage.removeItem('token');
-                    window.location.href = '/';
+                    window.location.href = `/?reason=expired_token&next=${encodeURIComponent(window.location.pathname)}`;
                     return;
                 }
 
@@ -270,7 +270,7 @@
             } catch (error) {
                 console.error('Error during token verification:', error);
                 localStorage.removeItem('token');
-                window.location.href = '/';
+                window.location.href = `/?reason=expired_token&next=${encodeURIComponent(window.location.pathname)}`;
             }
         }
 
