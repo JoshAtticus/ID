@@ -116,6 +116,24 @@
             transform: translateY(-2px);
         }
 
+        .secondary-button {
+            background: transparent;
+            color: var(--secondary-color);
+            padding: 10px 20px;
+            border: 1px solid var(--secondary-color);
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-left: 10px;
+        }
+
+        .secondary-button:hover {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
         .app-card,
         .create-app-form {
             background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb)));
@@ -144,6 +162,26 @@
             font-size: 18px;
             font-weight: 500;
             margin: 0 0 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-actions button {
+            background: none;
+            border: none;
+            color: var(--secondary-color);
+            cursor: pointer;
+            padding: 4px;
+            font-size: 14px;
+        }
+
+        .app-actions button:hover {
+            color: var(--primary-color);
+        }
+        
+        .app-actions button.danger-action:hover {
+            color: #ea4335;
         }
 
         .secret-box {
@@ -191,6 +229,64 @@
             box-shadow: 0 0 10px rgba(138, 180, 248, 0.3);
         }
 
+        .redirect-uri-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .redirect-uri-group input {
+            flex-grow: 1;
+        }
+
+        .remove-uri-btn {
+            background: none;
+            border: none;
+            color: #ea4335;
+            font-size: 20px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+
+        #addUriBtn {
+            background: none;
+            border: 1px solid var(--secondary-color);
+            color: var(--secondary-color);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        #addUriBtn:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+        
+        .danger-action {
+            color: #ea4335 !important;
+        }
+        
+        .regenerate-secret-btn {
+            margin-top: 12px;
+            margin-left: 0 !important;
+            width: auto;
+            display: block;
+        }
+        
+        .form-actions {
+            display: flex;
+            justify-content: flex-start;
+            margin-top: 30px;
+        }
+        
+        .hint-text {
+            color: var(--secondary-color);
+            font-size: 12px;
+            margin-top: 8px;
+            margin-bottom: 0;
+        }
+
         a {
             color: var(--primary-color);
             text-decoration: none;
@@ -198,6 +294,72 @@
 
         a:hover {
             text-decoration: underline;
+        }
+        
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.75);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-content {
+            background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb)));
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+            border: var(--tile-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            color: var(--text-color);
+        }
+        
+        .modal-body {
+            margin-bottom: 24px;
+            color: var(--text-color);
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .danger-button {
+            background: #ea4335;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .danger-button:hover {
+            background: #d33426;
+            box-shadow: 0 4px 15px 0 rgba(234, 67, 53, 0.4);
         }
     </style>
 </head>
@@ -228,23 +390,120 @@
                         <input type="text" id="appName" required>
                     </div>
                     <div class="input-group">
-                        <label for="redirectUri">Redirect URI</label>
-                        <input type="url" id="redirectUri" required>
+                        <label>Redirect URIs</label>
+                        <div id="redirectUrisContainer">
+                            <div class="redirect-uri-group">
+                                <input type="url" class="redirect-uri-input" required>
+                            </div>
+                        </div>
+                        <button type="button" id="addUriBtn">+ Add URI</button>
                     </div>
                     <div class="input-group">
                         <label for="website">Website (optional)</label>
                         <input type="url" id="website">
                     </div>
                     <button type="submit" class="primary-button">Create Application</button>
+                    <button type="button" id="cancelCreateBtn" class="secondary-button">Cancel</button>
+                </form>
+            </div>
+
+            <div id="editAppForm" class="create-app-form" style="display: none;">
+                <h2>Edit OAuth App</h2>
+                <form id="updateAppForm">
+                    <input type="hidden" id="editAppId">
+                    <div class="input-group">
+                        <label for="editAppName">Application Name</label>
+                        <input type="text" id="editAppName" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Redirect URIs</label>
+                        <div id="editRedirectUrisContainer">
+                            <!-- JS will populate this -->
+                        </div>
+                        <button type="button" id="addEditUriBtn">+ Add URI</button>
+                    </div>
+                    <div class="input-group">
+                        <label for="editWebsite">Website (optional)</label>
+                        <input type="url" id="editWebsite">
+                    </div>
+                    <div class="input-group">
+                        <label>Client Secret Management</label>
+                        <button type="button" id="regenerateSecretBtn" class="danger-button">Regenerate Client Secret</button>
+                        <p class="hint-text">Warning: Regenerating will invalidate the existing secret.</p>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="primary-button">Save Changes</button>
+                        <button type="button" id="cancelEditBtn" class="secondary-button">Cancel</button>
+                    </div>
                 </form>
             </div>
 
             <div id="appsList"></div>
+
+            <!-- Universal Modal -->
+            <div id="universalModal" class="modal-overlay" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modalTitle"></h3>
+                    </div>
+                    <div class="modal-body" id="modalBody">
+                        <!-- Content will be set dynamically -->
+                    </div>
+                    <div class="modal-footer" id="modalFooter">
+                        <!-- Buttons will be set dynamically -->
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
     <script>
         let token = localStorage.getItem('token');
+        
+        // Universal Modal Management
+        const modal = {
+            element: document.getElementById('universalModal'),
+            title: document.getElementById('modalTitle'),
+            body: document.getElementById('modalBody'),
+            footer: document.getElementById('modalFooter'),
+            
+            show: function(options) {
+                this.title.textContent = options.title || '';
+                this.body.innerHTML = options.body || '';
+                this.footer.innerHTML = '';
+                
+                // Add buttons
+                if (options.buttons) {
+                    options.buttons.forEach(btn => {
+                        const button = document.createElement('button');
+                        button.className = btn.class || 'secondary-button';
+                        button.textContent = btn.text;
+                        button.addEventListener('click', (e) => {
+                            if (btn.action) {
+                                btn.action(e);
+                            }
+                            if (btn.closeOnClick !== false) {
+                                this.hide();
+                            }
+                        });
+                        this.footer.appendChild(button);
+                    });
+                }
+                
+                this.element.style.display = 'flex';
+            },
+            
+            hide: function() {
+                this.element.style.display = 'none';
+            }
+        };
+        
+        // Click outside modal to close (optional)
+        modal.element.addEventListener('click', (e) => {
+            if (e.target === modal.element) {
+                modal.hide();
+            }
+        });
 
         async function verifyTokenAndLoad() {
             if (!token) {
@@ -284,29 +543,100 @@
                 .then(data => {
                     const appsList = document.getElementById('appsList');
                     appsList.innerHTML = data.apps.map(app => `
-                    <div class="app-card">
-                        <h3>${app.name}</h3>
+                    <div class="app-card" data-app-id="${app.id}">
+                        <h3>
+                            <span>${app.name}</span>
+                            <div class="app-actions">
+                                <button class="edit-btn">Edit</button>
+                                <button class="delete-btn">Delete</button>
+                            </div>
+                        </h3>
                         <p><strong>Client ID:</strong></p>
                         <div class="secret-box">${app.client_id}</div>
-                        <p><strong>Redirect URI:</strong> ${app.redirect_uri}</p>
+                        <p><strong>Redirect URIs:</strong></p>
+                        <ul>
+                            ${app.redirect_uri.split(',').map(uri => `<li>${uri}</li>`).join('')}
+                        </ul>
                         ${app.website ? `<p><strong>Website:</strong> <a href="${app.website}" target="_blank">${app.website}</a></p>` : ''}
                         <p><strong>Created:</strong> ${new Date(app.created_at).toLocaleDateString()}</p>
                     </div>
                 `).join('');
+
+                    // Add event listeners for buttons
+                    document.querySelectorAll('.edit-btn').forEach(button => {
+                        button.addEventListener('click', handleEditClick);
+                    });
+                    document.querySelectorAll('.delete-btn').forEach(button => {
+                        button.addEventListener('click', handleDeleteClick);
+                    });
                 })
                 .catch(error => console.error('Error:', error));
         }
 
+        function setupRedirectUriInput(containerId, buttonId) {
+            const container = document.getElementById(containerId);
+            const button = document.getElementById(buttonId);
+
+            const addInput = () => {
+                if (container.children.length < 3) {
+                    const inputGroup = document.createElement('div');
+                    inputGroup.className = 'redirect-uri-group';
+                    inputGroup.innerHTML = `
+                        <input type="url" class="redirect-uri-input" required>
+                        <button type="button" class="remove-uri-btn">&times;</button>
+                    `;
+                    container.appendChild(inputGroup);
+                    inputGroup.querySelector('.remove-uri-btn').addEventListener('click', () => {
+                        inputGroup.remove();
+                        button.style.display = 'block';
+                    });
+                }
+                if (container.children.length >= 3) {
+                    button.style.display = 'none';
+                }
+            };
+
+            button.addEventListener('click', addInput);
+
+            container.addEventListener('click', (e) => {
+                if (e.target.classList.contains('remove-uri-btn')) {
+                    e.target.parentElement.remove();
+                     if (container.children.length < 3) {
+                        button.style.display = 'block';
+                    }
+                }
+            });
+        }
+
+        setupRedirectUriInput('redirectUrisContainer', 'addUriBtn');
+        setupRedirectUriInput('editRedirectUrisContainer', 'addEditUriBtn');
+
+
         document.getElementById('createAppBtn').addEventListener('click', () => {
             document.getElementById('createAppForm').style.display = 'block';
+            document.getElementById('createAppBtn').style.display = 'none';
+        });
+
+        document.getElementById('cancelCreateBtn').addEventListener('click', () => {
+            document.getElementById('createAppForm').style.display = 'none';
+            document.getElementById('createAppBtn').style.display = 'block';
+            document.getElementById('newAppForm').reset();
+        });
+
+        document.getElementById('cancelEditBtn').addEventListener('click', () => {
+            document.getElementById('editAppForm').style.display = 'none';
+            document.getElementById('createAppBtn').style.display = 'block';
+            document.getElementById('updateAppForm').reset();
         });
 
         document.getElementById('newAppForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            const redirectUris = Array.from(document.querySelectorAll('#redirectUrisContainer .redirect-uri-input')).map(input => input.value);
+
             const appData = {
                 name: document.getElementById('appName').value,
-                redirect_uri: document.getElementById('redirectUri').value,
+                redirect_uris: redirectUris,
                 website: document.getElementById('website').value || null
             };
 
@@ -322,18 +652,252 @@
 
                 const data = await response.json();
                 if (response.ok) {
-                    alert(`App created successfully!\n\nClient Secret: ${data.app.client_secret}\n\nPlease save this secret as it won't be shown again.`);
-                    document.getElementById('createAppForm').style.display = 'none';
-                    document.getElementById('newAppForm').reset();
-                    loadApps();
+                    // Show success with new client secret in modal
+                    modal.show({
+                        title: 'App Created Successfully',
+                        body: `
+                            <p>Your new OAuth application has been created.</p>
+                            <p><strong>Important:</strong> Please save your client secret now. It will not be shown again.</p>
+                            <div class="secret-box">${data.app.client_secret}</div>
+                        `,
+                        buttons: [
+                            {
+                                text: 'Done',
+                                class: 'primary-button',
+                                action: () => {
+                                    document.getElementById('createAppForm').style.display = 'none';
+                                    document.getElementById('createAppBtn').style.display = 'block';
+                                    document.getElementById('newAppForm').reset();
+                                    loadApps();
+                                }
+                            }
+                        ]
+                    });
                 } else {
-                    alert(data.message || 'Error creating app');
+                    modal.show({
+                        title: 'Error',
+                        body: `<p>${data.message || 'Error creating app'}</p>`,
+                        buttons: [{text: 'OK', class: 'primary-button'}]
+                    });
                 }
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error creating app');
+                modal.show({
+                    title: 'Error',
+                    body: '<p>There was an error creating the application. Please try again.</p>',
+                    buttons: [{text: 'OK', class: 'primary-button'}]
+                });
             }
         });
+
+        async function handleEditClick(event) {
+            const appCard = event.target.closest('.app-card');
+            const appId = appCard.dataset.appId;
+            
+            // Find app data from the loaded apps
+            const appName = appCard.querySelector('h3 span').textContent;
+            const redirectUris = Array.from(appCard.querySelectorAll('ul li')).map(li => li.textContent);
+            const website = appCard.querySelector('p a') ? appCard.querySelector('p a').href : '';
+
+            // Populate and show the edit form
+            document.getElementById('editAppId').value = appId;
+            document.getElementById('editAppName').value = appName;
+            document.getElementById('editWebsite').value = website;
+
+            const container = document.getElementById('editRedirectUrisContainer');
+            container.innerHTML = ''; // Clear previous URIs
+            redirectUris.forEach(uri => {
+                 const inputGroup = document.createElement('div');
+                    inputGroup.className = 'redirect-uri-group';
+                    inputGroup.innerHTML = `
+                        <input type="url" class="redirect-uri-input" value="${uri}" required>
+                        <button type="button" class="remove-uri-btn">&times;</button>
+                    `;
+                    container.appendChild(inputGroup);
+            });
+            document.getElementById('addEditUriBtn').style.display = container.children.length < 3 ? 'block' : 'none';
+
+            document.getElementById('createAppForm').style.display = 'none';
+            document.getElementById('editAppForm').style.display = 'block';
+            document.getElementById('createAppBtn').style.display = 'none';
+        }
+
+        document.getElementById('regenerateSecretBtn').addEventListener('click', function() {
+            const appId = document.getElementById('editAppId').value;
+            const appName = document.getElementById('editAppName').value;
+            
+            modal.show({
+                title: 'Regenerate Client Secret',
+                body: `
+                    <p>Are you sure you want to regenerate the client secret for <strong>${appName}</strong>?</p>
+                    <p><strong>Warning:</strong> This action cannot be undone. Your previous client secret will immediately stop working, and any applications using it will need to be updated.</p>
+                `,
+                buttons: [
+                    {
+                        text: 'Cancel',
+                        class: 'secondary-button'
+                    },
+                    {
+                        text: 'Regenerate Secret',
+                        class: 'danger-button',
+                        action: () => regenerateClientSecret(appId)
+                    }
+                ]
+            });
+        });
+
+        async function regenerateClientSecret(appId) {
+            try {
+                const response = await fetch(`/account/developer/apps/${appId}/regenerate-secret`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token
+                    }
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    // Show the new secret in another modal
+                    modal.show({
+                        title: 'New Client Secret Generated',
+                        body: `
+                            <p>Your new client secret has been generated. Please save it now, as it won't be shown again:</p>
+                            <div class="secret-box">${data.client_secret}</div>
+                        `,
+                        buttons: [{text: 'Done', class: 'primary-button'}]
+                    });
+                } else {
+                    modal.show({
+                        title: 'Error',
+                        body: `<p>${data.message || 'Error regenerating client secret'}</p>`,
+                        buttons: [{text: 'OK', class: 'primary-button'}]
+                    });
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                modal.show({
+                    title: 'Error',
+                    body: '<p>There was an error regenerating the client secret. Please try again.</p>',
+                    buttons: [{text: 'OK', class: 'primary-button'}]
+                });
+            }
+        }
+
+        document.getElementById('updateAppForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const appId = document.getElementById('editAppId').value;
+            const redirectUris = Array.from(document.querySelectorAll('#editRedirectUrisContainer .redirect-uri-input')).map(input => input.value);
+
+            const appData = {
+                name: document.getElementById('editAppName').value,
+                redirect_uris: redirectUris,
+                website: document.getElementById('editWebsite').value || null
+            };
+
+            try {
+                const response = await fetch(`/account/developer/apps/${appId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(appData)
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    modal.show({
+                        title: 'Success',
+                        body: '<p>Application updated successfully.</p>',
+                        buttons: [
+                            {
+                                text: 'OK',
+                                class: 'primary-button',
+                                action: () => {
+                                    document.getElementById('editAppForm').style.display = 'none';
+                                    document.getElementById('createAppBtn').style.display = 'block';
+                                    loadApps();
+                                }
+                            }
+                        ]
+                    });
+                } else {
+                    modal.show({
+                        title: 'Error',
+                        body: `<p>${data.message || 'Error updating app'}</p>`,
+                        buttons: [{text: 'OK', class: 'primary-button'}]
+                    });
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                modal.show({
+                    title: 'Error',
+                    body: '<p>There was an error updating the application. Please try again.</p>',
+                    buttons: [{text: 'OK', class: 'primary-button'}]
+                });
+            }
+        });
+
+        async function handleDeleteClick(event) {
+            const appCard = event.target.closest('.app-card');
+            const appId = appCard.dataset.appId;
+            const appName = appCard.querySelector('h3 span').textContent;
+
+            modal.show({
+                title: 'Delete OAuth App',
+                body: `
+                    <p>Are you sure you want to delete the app <strong>${appName}</strong>?</p>
+                    <p><strong>Warning:</strong> This action cannot be undone and will immediately revoke access for all users.</p>
+                `,
+                buttons: [
+                    {
+                        text: 'Cancel',
+                        class: 'secondary-button'
+                    },
+                    {
+                        text: 'Delete App',
+                        class: 'danger-button',
+                        action: async () => {
+                            try {
+                                const response = await fetch(`/account/developer/apps/${appId}`, {
+                                    method: 'DELETE',
+                                    headers: {
+                                        'Authorization': token
+                                    }
+                                });
+                                const data = await response.json();
+                                if (response.ok) {
+                                    modal.show({
+                                        title: 'Success',
+                                        body: '<p>Application deleted successfully.</p>',
+                                        buttons: [
+                                            {
+                                                text: 'OK',
+                                                class: 'primary-button',
+                                                action: () => loadApps()
+                                            }
+                                        ]
+                                    });
+                                } else {
+                                    modal.show({
+                                        title: 'Error',
+                                        body: `<p>${data.message || 'Error deleting app'}</p>`,
+                                        buttons: [{text: 'OK', class: 'primary-button'}]
+                                    });
+                                }
+                            } catch (error) {
+                                console.error('Error:', error);
+                                modal.show({
+                                    title: 'Error',
+                                    body: '<p>There was an error deleting the application. Please try again.</p>',
+                                    buttons: [{text: 'OK', class: 'primary-button'}]
+                                });
+                            }
+                        }
+                    }
+                ]
+            });
+        }
 
         // Verify token and load apps when page loads
         verifyTokenAndLoad();

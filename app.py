@@ -77,6 +77,7 @@ class LoginHistory(db.Model):
 class OAuthApp(db.Model):
     __tablename__ = "oauth_app"
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     client_id = db.Column(db.String(32), unique=True, nullable=False)
     client_secret = db.Column(db.String(64), nullable=False)
@@ -753,19 +754,25 @@ def oauth_token():
     redirect_uri = request.form.get("redirect_uri")
 
     if grant_type != "authorization_code":
-        return jsonify({"error": "unsupported_grant_type"}), 400
+        return jsonify({"message": "Unsupported grant_type"}), 400
 
     oauth_code = OAuthCode.query.filter_by(code=code, app_id=oauth_app.id).first()
     if not oauth_code or oauth_code.used:
-        return jsonify({"error": "invalid_grant"}), 400
+        return jsonify({"message": "Invalid or used authorization code"}), 400
     # Ensure expires_at is timezone-aware before comparison
     expires_at = oauth_code.expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at < datetime.now(timezone.utc):
-        return jsonify({"error": "invalid_grant", "error_description": "Code expired"}), 400
+        return jsonify({"message": "Expired authorization code"}), 400
+        
+    # Split the stored URIs into a list and check if the provided one is valid
+    valid_redirect_uris = oauth_app.redirect_uri.split(',')
+    if redirect_uri not in valid_redirect_uris:
+        return jsonify({"message": "Invalid redirect_uri"}), 400
+
     if oauth_code.redirect_uri != redirect_uri:
-        return jsonify({"error": "invalid_grant", "error_description": "Redirect URI mismatch"}), 400
+        return jsonify({"message": "Redirect URI mismatch"}), 400
 
     oauth_code.used = True
     db.session.commit()
@@ -902,84 +909,257 @@ def revoke_app():
 def get_developer_apps():
     token = request.headers.get("Authorization")
     if not token:
-        return jsonify({"message": "Token is missing"}), 401
+        return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.get(data["user_id"])
+        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user_id = payload["user_id"]
+        update_session_activity(token)
+        
+        try:
+            # Try to filter by user_id (works if migration has been applied)
+            apps = OAuthApp.query.filter_by(user_id=user_id).all()
+        except Exception as e:
+            # If filtering by user_id fails, the column might not exist yet
+            if "user_id" in str(e):
+                # Try to run migrations
+                perform_migrations()
+                # After migration, try again with user_id filter
+                try:
+                    apps = OAuthApp.query.filter_by(user_id=user_id).all()
+                except:
+                    # If it still fails, return all apps (fallback for backward compatibility)
+                    apps = OAuthApp.query.all()
+            else:
+                # Some other error occurred
+                return jsonify({"message": f"Error retrieving apps: {str(e)}"}), 500
 
-        if not user:
-            return jsonify({"message": "User not found"}), 404
-
-        apps = OAuthApp.query.all()
-        return jsonify(
-            {
-                "apps": [
-                    {
-                        "id": app.id,
-                        "name": app.name,
-                        "client_id": app.client_id,
-                        "redirect_uri": app.redirect_uri,
-                        "website": app.website,
-                        "verified": app.verified,
-                        "created_at": app.created_at.isoformat(),
-                    }
-                    for app in apps
-                ]
-            }
-        )
+        return jsonify({
+            "apps": [{
+                "id": app.id,
+                "name": app.name,
+                "client_id": app.client_id,
+                "redirect_uri": app.redirect_uri,
+                "website": app.website,
+                "created_at": app.created_at.isoformat(),
+                "verified": app.verified
+            } for app in apps]
+        })
 
     except Exception as e:
-        print(f"Error getting developer apps: {str(e)}")
-        return jsonify({"message": "Internal server error"}), 500
+        return jsonify({"message": f"Error: {str(e)}"}), 500
 
 
 @app.route("/account/developer/apps", methods=["POST"])
 def create_developer_app():
     token = request.headers.get("Authorization")
     if not token:
-        return jsonify({"message": "Token is missing"}), 401
+        return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.get(data["user_id"])
+        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user_id = payload["user_id"]
+        update_session_activity(token)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return jsonify({"message": "Invalid or expired token"}), 401
 
-        if not user:
-            return jsonify({"message": "User not found"}), 404
+    data = request.get_json()
+    name = data.get("name")
+    redirect_uris = data.get("redirect_uris")
+    website = data.get("website")
 
-        app_data = request.get_json()
+    if not name or not redirect_uris or not isinstance(redirect_uris, list) or len(redirect_uris) == 0:
+        return jsonify({"message": "Application name and at least one redirect URI are required"}), 400
+    
+    if len(redirect_uris) > 3:
+        return jsonify({"message": "You can only have up to 3 redirect URIs"}), 400
+
+    for uri in redirect_uris:
+        parsed_uri = urlparse(uri)
+        if not all([parsed_uri.scheme, parsed_uri.netloc]):
+            return jsonify({"message": f"Invalid redirect URI: {uri}"}), 400
+
+    try:
         new_app = OAuthApp(
-            name=app_data["name"],
+            user_id=user_id,
+            name=name,
             client_id=secrets.token_hex(16),
             client_secret=secrets.token_hex(32),
-            redirect_uri=app_data["redirect_uri"],
-            website=app_data.get("website"),
+            redirect_uri=",".join(redirect_uris),
+            website=website,
         )
-
         db.session.add(new_app)
         db.session.commit()
-
-        return (
-            jsonify(
-                {
-                    "message": "App created successfully",
-                    "app": {
-                        "id": new_app.id,
-                        "name": new_app.name,
-                        "client_id": new_app.client_id,
-                        "client_secret": new_app.client_secret,
-                        "redirect_uri": new_app.redirect_uri,
-                        "website": new_app.website,
-                    },
-                }
-            ),
-            201,
-        )
-
     except Exception as e:
         db.session.rollback()
-        print(f"Error creating developer app: {str(e)}")
-        return jsonify({"message": "Internal server error"}), 500
+        # If there's an error with user_id column, try to perform the migration
+        if "user_id" in str(e):
+            try:
+                perform_migrations()
+                # Try again after migration
+                new_app = OAuthApp(
+                    user_id=user_id,
+                    name=name,
+                    client_id=secrets.token_hex(16),
+                    client_secret=secrets.token_hex(32),
+                    redirect_uri=",".join(redirect_uris),
+                    website=website,
+                )
+                db.session.add(new_app)
+                db.session.commit()
+            except Exception as e2:
+                return jsonify({"message": f"Error creating application after migration attempt: {str(e2)}"}), 500
+        else:
+            return jsonify({"message": f"Error creating application: {str(e)}"}), 500
+
+    return jsonify({
+        "message": "Application created successfully",
+        "app": {
+            "id": new_app.id,
+            "name": new_app.name,
+            "client_id": new_app.client_id,
+            "client_secret": new_app.client_secret, # Important: only show this once
+            "redirect_uris": new_app.redirect_uri.split(','),
+            "website": new_app.website,
+            "created_at": new_app.created_at.isoformat(),
+        }
+    }), 201
+
+
+@app.route("/account/developer/apps/<app_id>", methods=["PUT"])
+def update_developer_app(app_id):
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Authorization token is missing"}), 401
+
+    try:
+        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user_id = payload["user_id"]
+        update_session_activity(token)
+        
+        try:
+            # Try to filter by user_id (works if migration has been applied)
+            app_to_update = OAuthApp.query.filter_by(id=app_id, user_id=user_id).first()
+        except Exception as e:
+            # If filtering by user_id fails, the column might not exist yet
+            if "user_id" in str(e):
+                # Run migrations
+                perform_migrations()
+                # After migration, try a simpler query without user_id filtering
+                app_to_update = OAuthApp.query.filter_by(id=app_id).first()
+            else:
+                return jsonify({"message": f"Error retrieving app: {str(e)}"}), 500
+                
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return jsonify({"message": "Invalid or expired token"}), 401
+
+    if not app_to_update:
+        return jsonify({"message": "App not found or you don't have permission to edit it"}), 404
+
+    data = request.get_json()
+    name = data.get("name")
+    redirect_uris = data.get("redirect_uris")
+    website = data.get("website")
+
+    if not name or not redirect_uris or not isinstance(redirect_uris, list) or len(redirect_uris) == 0:
+        return jsonify({"message": "Application name and at least one redirect URI are required"}), 400
+    
+    if len(redirect_uris) > 3:
+        return jsonify({"message": "You can only have up to 3 redirect URIs"}), 400
+
+    for uri in redirect_uris:
+        parsed_uri = urlparse(uri)
+        if not all([parsed_uri.scheme, parsed_uri.netloc]):
+            return jsonify({"message": f"Invalid redirect URI: {uri}"}), 400
+
+    app_to_update.name = name
+    app_to_update.redirect_uri = ",".join(redirect_uris)
+    app_to_update.website = website
+    db.session.commit()
+
+    return jsonify({"message": "Application updated successfully"})
+
+
+@app.route("/account/developer/apps/<app_id>/regenerate-secret", methods=["POST"])
+def regenerate_client_secret(app_id):
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Authorization token is missing"}), 401
+
+    try:
+        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user_id = payload["user_id"]
+        update_session_activity(token)
+        
+        try:
+            # Try to filter by user_id (works if migration has been applied)
+            app_to_update = OAuthApp.query.filter_by(id=app_id, user_id=user_id).first()
+        except Exception as e:
+            # If filtering by user_id fails, the column might not exist yet
+            if "user_id" in str(e):
+                # Run migrations
+                perform_migrations()
+                # After migration, try a simpler query without user_id filtering
+                app_to_update = OAuthApp.query.filter_by(id=app_id).first()
+            else:
+                return jsonify({"message": f"Error retrieving app: {str(e)}"}), 500
+                
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return jsonify({"message": "Invalid or expired token"}), 401
+
+    if not app_to_update:
+        return jsonify({"message": "App not found or you don't have permission to edit it"}), 404
+
+    # Generate a new client secret
+    new_secret = secrets.token_hex(32)
+    app_to_update.client_secret = new_secret
+    db.session.commit()
+
+    return jsonify({
+        "message": "Client secret regenerated successfully",
+        "client_secret": new_secret
+    })
+
+
+@app.route("/account/developer/apps/<app_id>", methods=["DELETE"])
+def delete_developer_app(app_id):
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Authorization token is missing"}), 401
+
+    try:
+        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user_id = payload["user_id"]
+        update_session_activity(token)
+        
+        try:
+            # Try to filter by user_id (works if migration has been applied)
+            app_to_delete = OAuthApp.query.filter_by(id=app_id, user_id=user_id).first()
+        except Exception as e:
+            # If filtering by user_id fails, the column might not exist yet
+            if "user_id" in str(e):
+                # Run migrations
+                perform_migrations()
+                # After migration, try a simpler query
+                app_to_delete = OAuthApp.query.filter_by(id=app_id).first()
+            else:
+                return jsonify({"message": f"Error retrieving app: {str(e)}"}), 500
+                
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return jsonify({"message": "Invalid or expired token"}), 401
+
+    if not app_to_delete:
+        return jsonify({"message": "App not found or you don't have permission to delete it"}), 404
+
+    # Clean up related authorizations and codes first
+    OAuthAuthorization.query.filter_by(app_id=app_to_delete.id).delete()
+    OAuthCode.query.filter_by(app_id=app_to_delete.id).delete()
+    
+    db.session.delete(app_to_delete)
+    db.session.commit()
+
+    return jsonify({"message": "Application deleted successfully"})
+
 
 
 # Add new route for password check
@@ -1078,27 +1258,45 @@ def terms():
 # Create the database tables
 def init_db():
     with app.app_context():
-        # Create tables first
         db.create_all()
         
-        # Then check and add columns if needed
-        with db.engine.connect() as conn:
-            try:
-                # Get existing columns for oauth_app table
-                result = conn.execute(text('PRAGMA table_info(oauth_app)'))
-                oauth_app_columns = [col[1] for col in result.fetchall()]
+        # After creating tables, check if we need to perform migrations
+        perform_migrations()
+
+def perform_migrations():
+    """Check for and apply any needed database migrations"""
+    try:
+        # Check if user_id column exists in oauth_app table
+        exists = False
+        with db.engine.connect() as connection:
+            # Get the column info for the oauth_app table
+            result = connection.execute(text("PRAGMA table_info(oauth_app)"))
+            columns = result.fetchall()
+            
+            # Check if user_id column exists
+            for col in columns:
+                if col[1] == 'user_id':  # column name is at index 1
+                    exists = True
+                    break
+            
+            # Add user_id column if it doesn't exist
+            if not exists:
+                print("Migrating database: Adding user_id column to oauth_app table")
+                # Add the column with a default value
+                connection.execute(text("ALTER TABLE oauth_app ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"))
                 
-                # Add verified column if it doesn't exist
-                if 'verified' not in oauth_app_columns:
-                    print("Adding 'verified' column to oauth_app table...")
-                    conn.execute(text('ALTER TABLE oauth_app ADD COLUMN verified BOOLEAN DEFAULT FALSE'))
-                    conn.commit()
-                    print("Successfully added 'verified' column")
+                # Create foreign key relationship in a separate statement
+                # Note: SQLite has limited ALTER TABLE support, so we're setting a default value instead of a proper FK
+                connection.execute(text("PRAGMA foreign_keys=off"))
+                connection.execute(text("COMMIT"))
+                print("Database migration completed successfully")
+        
+        # Check for any other migrations that might be needed in the future
+        # e.g., check_other_migrations()
                 
-            except Exception as e:
-                print(f"Error during database migration: {str(e)}")
-                conn.rollback()
-                raise
+    except Exception as e:
+        print(f"Error during database migration: {str(e)}")
+        db.session.rollback()
 
 if __name__ == "__main__":
     init_db()  # Initialize the database
