@@ -853,7 +853,7 @@ def get_authorized_apps():
                         "name": oauth_app.name,
                         "website": oauth_app.website,
                         "verified": oauth_app.verified,
-                        "scopes": auth.scopes.split(" ") if auth.scopes else [],
+                        "scopes": auth.scopes.split() if auth.scopes else [],
                         "last_used": (
                             auth.last_used.isoformat() if auth.last_used else None
                         ),
