@@ -1275,33 +1275,22 @@ def perform_migrations():
     """Check for and apply any needed database migrations"""
     try:
         # Check if user_id column exists in oauth_app table
-        exists = False
         with db.engine.connect() as connection:
             # Get the column info for the oauth_app table
             result = connection.execute(text("PRAGMA table_info(oauth_app)"))
             columns = result.fetchall()
-            
+
             # Check if user_id column exists
-            for col in columns:
-                if col[1] == 'user_id':  # column name is at index 1
-                    exists = True
-                    break
-            
+            exists = any(col[1] == 'user_id' for col in columns)
+
             # Add user_id column if it doesn't exist
             if not exists:
                 print("Migrating database: Adding user_id column to oauth_app table")
                 # Add the column with a default value
-                connection.execute(text("ALTER TABLE oauth_app ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"))
-                
-                # Create foreign key relationship in a separate statement
-                # Note: SQLite has limited ALTER TABLE support, so we're setting a default value instead of a proper FK
-                connection.execute(text("PRAGMA foreign_keys=off"))
-                connection.execute(text("COMMIT"))
+                with connection.begin():
+                    connection.execute(text("ALTER TABLE oauth_app ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"))
                 print("Database migration completed successfully")
-        
-        # Check for any other migrations that might be needed in the future
-        # e.g., check_other_migrations()
-                
+
     except Exception as e:
         print(f"Error during database migration: {str(e)}")
         db.session.rollback()
