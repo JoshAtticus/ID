@@ -1303,30 +1303,34 @@ def init_db():
         perform_migrations()
 
 def perform_migrations():
-    """Check for and apply any needed database migrations"""
-    try:
-        # Check if user_id column exists in oauth_app table
-        with db.engine.connect() as connection:
-            # Get the column info for the oauth_app table
-            result = connection.execute(text("PRAGMA table_info(oauth_app)"))
-            columns = result.fetchall()
+    """Check for and apply any needed database migrations."""
+    with app.app_context():
+        try:
+            with db.engine.connect() as connection:
+                # --- Migration 1: Add user_id to oauth_app ---
+                oauth_app_cols = connection.execute(text("PRAGMA table_info(oauth_app)")).fetchall()
+                if not any(col[1] == 'user_id' for col in oauth_app_cols):
+                    print("Migrating database: Adding user_id column to oauth_app table...")
+                    with connection.begin():
+                        # Add the column with a default value to satisfy NOT NULL
+                        connection.execute(text("ALTER TABLE oauth_app ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"))
+                    print("Migration complete: oauth_app.user_id added.")
 
-            # Check if user_id column exists
-            exists = any(col[1] == 'user_id' for col in columns)
+                # --- Migration 2: Add has_accepted_legal to user ---
+                user_cols = connection.execute(text("PRAGMA table_info(user)")).fetchall()
+                if not any(col[1] == 'has_accepted_legal' for col in user_cols):
+                    print("Migrating database: Adding has_accepted_legal column to user table...")
+                    with connection.begin():
+                        # Add the boolean column. NOT NULL with a DEFAULT is required for existing rows.
+                        # In SQLite, boolean is stored as INTEGER 0 (false) or 1 (true).
+                        connection.execute(text("ALTER TABLE user ADD COLUMN has_accepted_legal BOOLEAN NOT NULL DEFAULT 0"))
+                    print("Migration complete: user.has_accepted_legal added.")
 
-            # Add user_id column if it doesn't exist
-            if not exists:
-                print("Migrating database: Adding user_id column to oauth_app table")
-                # Add the column with a default value
-                with connection.begin():
-                    connection.execute(text("ALTER TABLE oauth_app ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"))
-                print("Database migration completed successfully")
+        except Exception as e:
+            print(f"Error during database migration: {str(e)}")
 
-    except Exception as e:
-        print(f"Error during database migration: {str(e)}")
-        db.session.rollback()
 
 if __name__ == "__main__":
-    init_db()  # Initialize the database
+    init_db()  # Initialize the database and run migrations
     print("\033[91mYOU ARE RUNNING THE SERVER IN DEBUG MODE! DO NOT USE THIS IN PRODUCTION!\033[0m")
     app.run(debug=True, port=5002)
