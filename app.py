@@ -1306,27 +1306,28 @@ def perform_migrations():
     """Check for and apply any needed database migrations."""
     with app.app_context():
         try:
-            with db.engine.connect() as connection:
+            # Use engine.begin() to get a connection and start a single transaction.
+            # It automatically commits on success or rolls back on error.
+            with db.engine.begin() as connection:
                 # --- Migration 1: Add user_id to oauth_app ---
-                oauth_app_cols = connection.execute(text("PRAGMA table_info(oauth_app)")).fetchall()
+                # The .all() is important to consume the result before the next query
+                oauth_app_cols = connection.execute(text("PRAGMA table_info(oauth_app)")).all()
                 if not any(col[1] == 'user_id' for col in oauth_app_cols):
                     print("Migrating database: Adding user_id column to oauth_app table...")
-                    with connection.begin():
-                        # Add the column with a default value to satisfy NOT NULL
-                        connection.execute(text("ALTER TABLE oauth_app ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"))
+                    connection.execute(text("ALTER TABLE oauth_app ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"))
                     print("Migration complete: oauth_app.user_id added.")
 
                 # --- Migration 2: Add has_accepted_legal to user ---
-                user_cols = connection.execute(text("PRAGMA table_info(user)")).fetchall()
+                user_cols = connection.execute(text("PRAGMA table_info(user)")).all()
                 if not any(col[1] == 'has_accepted_legal' for col in user_cols):
                     print("Migrating database: Adding has_accepted_legal column to user table...")
-                    with connection.begin():
-                        # Add the boolean column. NOT NULL with a DEFAULT is required for existing rows.
-                        # In SQLite, boolean is stored as INTEGER 0 (false) or 1 (true).
-                        connection.execute(text("ALTER TABLE user ADD COLUMN has_accepted_legal BOOLEAN NOT NULL DEFAULT 0"))
+                    # Add the boolean column. NOT NULL with a DEFAULT is required for existing rows.
+                    # In SQLite, boolean is stored as INTEGER 0 (false) or 1 (true).
+                    connection.execute(text("ALTER TABLE user ADD COLUMN has_accepted_legal BOOLEAN NOT NULL DEFAULT 0"))
                     print("Migration complete: user.has_accepted_legal added.")
 
         except Exception as e:
+            # This outer catch is still useful for logging the error.
             print(f"Error during database migration: {str(e)}")
 
 
