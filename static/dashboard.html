@@ -785,7 +785,7 @@
                 const recommendationsList = document.getElementById('recommendationsList');
                 const noRecommendations = document.getElementById('noRecommendations');
 
-                if (data.recommendations.length === 0) {
+                if (data.length === 0) {
                     recommendationsList.style.display = 'none';
                     noRecommendations.style.display = 'block';
                     return;
@@ -793,7 +793,7 @@
 
                 recommendationsList.style.display = 'block';
                 noRecommendations.style.display = 'none';
-                recommendationsList.innerHTML = data.recommendations.map(rec => {
+                recommendationsList.innerHTML = data.map(rec => {
                     if (rec.action === 'redirect') {
                         return `
                             <div class="recommendation-card">
