@@ -41,6 +41,7 @@ class User(db.Model):
     profile_picture = db.Column(db.String(255))
     sessions = db.relationship("Session", backref="user", lazy=True)
     login_history = db.relationship("LoginHistory", backref="user", lazy=True)
+    has_accepted_legal = db.Column(db.Boolean, default=False, nullable=False)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -365,25 +366,30 @@ def upload_profile_picture():
 def get_recommendations():
     token = request.headers.get("Authorization")
     if not token:
-        return jsonify({"message": "Token is missing"}), 401
+        return jsonify({"error": "Unauthorized"}), 401
 
-    try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.get(data["user_id"])
+    session = Session.query.filter_by(token=token).first()
+    if not session:
+        return jsonify({"error": "Invalid token"}), 401
 
-        recommendations = []
-        if not user.profile_picture:
-            recommendations.append(
-                {
-                    "type": "profile_picture",
-                    "message": "Set a profile picture to personalise your account",
-                    "action": "set_profile_picture",
-                }
-            )
+    user = User.query.get(session.user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
-        return jsonify({"recommendations": recommendations})
-    except:
-        return jsonify({"message": "Invalid token"}), 401
+    recommendations = []
+    
+    if not user.has_accepted_legal:
+        recommendations.append({
+            'title': 'Review our updated terms',
+            'description': 'We\'ve updated our Privacy Policy and Terms of Service. Please take a moment to review them.',
+            'action': 'redirect',
+            'action_url': '/legal'
+        })
+
+    # Placeholder for other recommendations
+    # Example: recommendations.append({'title': 'Enable 2FA', 'description': 'Add an extra layer of security to your account'})
+
+    return jsonify(recommendations)
 
 
 # Add function to clean expired sessions
@@ -1227,6 +1233,26 @@ def change_password():
     except:
         return jsonify({'message': 'Invalid token'}), 401
 
+@app.route('/account/accept-legal', methods=['POST'])
+def accept_legal():
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    session = Session.query.filter_by(token=token).first()
+    if not session:
+        return jsonify({'error': 'Invalid token'}), 401
+
+    user = User.query.get(session.user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    user.has_accepted_legal = True
+    db.session.commit()
+
+    return jsonify({'message': 'Legal terms accepted'}), 200
+
+
 ### Static Routes ###
 @app.route("/", methods=["GET"])
 def home():
@@ -1253,14 +1279,19 @@ def authorize_oauth_app():
     return send_from_directory("static", "authorize.html")
 
 
+@app.route("/legal")
+def legal():
+    return send_from_directory("static", "legal.html")
+
+
 @app.route("/privacy")
 def privacy():
-    return send_from_directory("static", "privacy.html")
+    return redirect('/legal')
 
 
 @app.route("/terms")
 def terms():
-    return send_from_directory("static", "terms.html")
+    return redirect('/legal')
 
 
 # Create the database tables
