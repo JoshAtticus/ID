@@ -1,7 +1,5 @@
 # JoshAtticusID
 One account for everything JoshAtticus
 
-> [!WARNING]
-> JoshAtticusID currently has MANY security vulnerabilities and should not be used. It has ceased operations temporarily as of 9/07/2025
-> 
-> rewrite soon:tm:
+> [!NOTE]
+> This is a completely re-written version of JoshAtticusID. It does not feature any code from the previous codebase and is written completely from scratch.
