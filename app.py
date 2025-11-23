@@ -55,14 +55,20 @@ OAUTH_SCOPES = {
 
 @app.route("/.well-known/openid-configuration", methods=["GET"])
 def openid_configuration():
-    base_url = request.url_root.rstrip('/')
+    # Ensure returned base_url always uses https
+    base = request.url_root.rstrip('/')
+    if base.startswith("http://"):
+        base = "https://" + base.split("://", 1)[1]
+    elif not base.startswith("https://"):
+        base = "https://" + base
+
     return jsonify({
-        "issuer": base_url,
-        "authorization_endpoint": f"{base_url}/oauth/authorize",
-        "token_endpoint": f"{base_url}/oauth/token",
-        "userinfo_endpoint": f"{base_url}/oauth/userinfo",
-        "revocation_endpoint": f"{base_url}/oauth/token/revoke",
-        "introspection_endpoint": f"{base_url}/oauth/token/introspect",
+        "issuer": base,
+        "authorization_endpoint": f"{base}/oauth/authorize",
+        "token_endpoint": f"{base}/oauth/token",
+        "userinfo_endpoint": f"{base}/oauth/userinfo",
+        "revocation_endpoint": f"{base}/oauth/token/revoke",
+        "introspection_endpoint": f"{base}/oauth/token/introspect",
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code"],
         "subject_types_supported": ["public"],
