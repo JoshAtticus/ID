@@ -1764,7 +1764,14 @@ def perform_migrations():
             print(f"Error during database migration: {str(e)}")
 
 
+# Initialize database on app startup (works with both gunicorn and direct run)
+try:
+    init_db()
+    print("✅ Database initialized successfully")
+except Exception as e:
+    print(f"⚠️  Database initialization warning: {str(e)}")
+
+
 if __name__ == "__main__":
-    init_db()  # Initialize the database and run migrations
     print("\033[91mYOU ARE RUNNING THE SERVER IN DEBUG MODE! DO NOT USE THIS IN PRODUCTION!\033[0m")
     app.run(debug=True, port=5002)
