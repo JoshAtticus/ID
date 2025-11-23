@@ -332,11 +332,88 @@
         </div>
     </div>
 
+    <!-- Modal -->
+    <div id="customModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 1000; justify-content: center; align-items: center;">
+        <div style="background: rgba(var(--tile-start-rgb), 0.95); backdrop-filter: blur(20px); border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);">
+            <h2 id="modalTitle" style="margin: 0 0 16px 0; color: var(--text-color); font-size: 20px;"></h2>
+            <div id="modalBody" style="margin-bottom: 24px; color: var(--secondary-color); line-height: 1.6;"></div>
+            <div id="modalButtons" style="display: flex; gap: 12px; justify-content: flex-end;"></div>
+        </div>
+    </div>
+
+    <!-- Input Modal -->
+    <div id="inputModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 1000; justify-content: center; align-items: center;">
+        <div style="background: rgba(var(--tile-start-rgb), 0.95); backdrop-filter: blur(20px); border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);">
+            <h2 id="inputModalTitle" style="margin: 0 0 16px 0; color: var(--text-color); font-size: 20px;"></h2>
+            <textarea id="inputModalTextarea" style="width: 100%; min-height: 100px; background: rgba(0,0,0,0.3); border: 1px solid #5f6368; border-radius: 8px; color: var(--text-color); padding: 12px; font-family: inherit; font-size: 14px; resize: vertical; margin-bottom: 16px;"></textarea>
+            <div id="inputModalButtons" style="display: flex; gap: 12px; justify-content: flex-end;"></div>
+        </div>
+    </div>
+
     <script>
         const token = localStorage.getItem('token');
         
         if (!token) {
             window.location.href = '/';
+        }
+
+        // Modal functions
+        function showModal(title, body, buttons) {
+            const modal = document.getElementById('customModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').innerHTML = body;
+            
+            const buttonContainer = document.getElementById('modalButtons');
+            buttonContainer.innerHTML = '';
+            
+            buttons.forEach(btn => {
+                const button = document.createElement('button');
+                button.textContent = btn.text;
+                button.className = 'button ' + (btn.class || '');
+                button.onclick = () => {
+                    modal.style.display = 'none';
+                    if (btn.action) btn.action();
+                };
+                buttonContainer.appendChild(button);
+            });
+            
+            modal.style.display = 'flex';
+        }
+
+        function showInputModal(title, placeholder, onSubmit) {
+            const modal = document.getElementById('inputModal');
+            const textarea = document.getElementById('inputModalTextarea');
+            
+            document.getElementById('inputModalTitle').textContent = title;
+            textarea.value = '';
+            textarea.placeholder = placeholder || '';
+            
+            const buttonContainer = document.getElementById('inputModalButtons');
+            buttonContainer.innerHTML = '';
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.className = 'button button-secondary';
+            cancelBtn.onclick = () => {
+                modal.style.display = 'none';
+            };
+            
+            const submitBtn = document.createElement('button');
+            submitBtn.textContent = 'Submit';
+            submitBtn.className = 'button';
+            submitBtn.onclick = () => {
+                const value = textarea.value.trim();
+                if (value) {
+                    modal.style.display = 'none';
+                    onSubmit(value);
+                }
+            };
+            
+            buttonContainer.appendChild(cancelBtn);
+            buttonContainer.appendChild(submitBtn);
+            
+            modal.style.display = 'flex';
+            textarea.focus();
         }
 
         async function checkAdminAccess() {
@@ -349,8 +426,15 @@
                 
                 const data = await response.json();
                 if (!data.is_admin) {
-                    alert('Access denied: Admin privileges required');
-                    window.location.href = '/dashboard';
+                    showModal(
+                        'Access Denied',
+                        '<p>Admin privileges required to access this page.</p>',
+                        [{
+                            text: 'Go to Dashboard',
+                            class: '',
+                            action: () => { window.location.href = '/dashboard'; }
+                        }]
+                    );
                 }
             } catch (error) {
                 console.error('Error checking admin access:', error);
@@ -478,100 +562,150 @@
         }
 
         async function verifyApp(appId) {
-            if (!confirm('Verify this application?')) return;
-            
-            try {
-                const response = await fetch(`/admin/apps/${appId}/verify`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': token
-                    }
-                });
+            showModal(
+                'Verify Application',
+                '<p>Are you sure you want to verify this application?</p><p>This will display a verified badge to users.</p>',
+                [
+                    {
+                        text: 'Cancel',
+                        class: 'button-secondary',
+                        action: () => {}
+                    },
+                    {
+                        text: 'Verify',
+                        class: '',
+                        action: async () => {
+                            try {
+                                const response = await fetch(`/admin/apps/${appId}/verify`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': token
+                                    }
+                                });
 
-                if (response.ok) {
-                    searchApp(); // Refresh the current app
-                } else {
-                    alert('Failed to verify app');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('An error occurred');
-            }
+                                if (response.ok) {
+                                    showModal('Success', '<p>Application verified successfully.</p>', [
+                                        { text: 'OK', class: '', action: () => searchApp() }
+                                    ]);
+                                } else {
+                                    showModal('Error', '<p>Failed to verify app. Please try again.</p>', [
+                                        { text: 'OK', class: '' }
+                                    ]);
+                                }
+                            } catch (error) {
+                                console.error('Error:', error);
+                                showModal('Error', '<p>An error occurred. Please try again.</p>', [
+                                    { text: 'OK', class: '' }
+                                ]);
+                            }
+                        }
+                    }
+                ]
+            );
         }
 
         async function unverifyApp(appId) {
-            const reason = prompt('Enter reason for removing verification:');
-            if (!reason) return;
-            
-            try {
-                const response = await fetch(`/admin/apps/${appId}/unverify`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': token,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ reason })
-                });
+            showInputModal('Remove Verification', 'Enter reason for removing verification...', async (reason) => {
+                try {
+                    const response = await fetch(`/admin/apps/${appId}/unverify`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': token,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ reason })
+                    });
 
-                if (response.ok) {
-                    alert('App unverified successfully');
-                    searchApp(); // Refresh the current app
-                } else {
-                    alert('Failed to unverify app');
+                    if (response.ok) {
+                        showModal('Success', '<p>App verification removed successfully.</p>', [
+                            { text: 'OK', class: '', action: () => searchApp() }
+                        ]);
+                    } else {
+                        showModal('Error', '<p>Failed to remove verification. Please try again.</p>', [
+                            { text: 'OK', class: '' }
+                        ]);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showModal('Error', '<p>An error occurred. Please try again.</p>', [
+                        { text: 'OK', class: '' }
+                    ]);
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('An error occurred');
-            }
+            });
         }
 
         async function banApp(appId) {
-            const reason = prompt('Enter reason for banning (will revoke all user authorizations):');
-            if (!reason) return;
-            
-            try {
-                const response = await fetch(`/admin/apps/${appId}/ban`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': token,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ reason })
-                });
+            showInputModal('Ban Application', 'Enter reason for banning (will revoke all user authorizations)...', async (reason) => {
+                try {
+                    const response = await fetch(`/admin/apps/${appId}/ban`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': token,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ reason })
+                    });
 
-                if (response.ok) {
-                    const data = await response.json();
-                    alert(`App banned successfully. Revoked ${data.revoked_count} user authorization(s).`);
-                    searchApp(); // Refresh the current app
-                } else {
-                    alert('Failed to ban app');
+                    if (response.ok) {
+                        const data = await response.json();
+                        showModal('Success', `<p>App banned successfully.</p><p>Revoked ${data.revoked_count} user authorization(s).</p>`, [
+                            { text: 'OK', class: '', action: () => searchApp() }
+                        ]);
+                    } else {
+                        showModal('Error', '<p>Failed to ban app. Please try again.</p>', [
+                            { text: 'OK', class: '' }
+                        ]);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showModal('Error', '<p>An error occurred. Please try again.</p>', [
+                        { text: 'OK', class: '' }
+                    ]);
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('An error occurred');
-            }
+            });
         }
 
         async function unbanApp(appId) {
-            if (!confirm('Unban this application?')) return;
-            
-            try {
-                const response = await fetch(`/admin/apps/${appId}/unban`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': token
-                    }
-                });
+            showModal(
+                'Unban Application',
+                '<p>Are you sure you want to unban this application?</p><p>Users will be able to authorize it again.</p>',
+                [
+                    {
+                        text: 'Cancel',
+                        class: 'button-secondary',
+                        action: () => {}
+                    },
+                    {
+                        text: 'Unban',
+                        class: '',
+                        action: async () => {
+                            try {
+                                const response = await fetch(`/admin/apps/${appId}/unban`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': token
+                                    }
+                                });
 
-                if (response.ok) {
-                    searchApp(); // Refresh the current app
-                } else {
-                    alert('Failed to unban app');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('An error occurred');
-            }
+                                if (response.ok) {
+                                    showModal('Success', '<p>Application unbanned successfully.</p>', [
+                                        { text: 'OK', class: '', action: () => searchApp() }
+                                    ]);
+                                } else {
+                                    showModal('Error', '<p>Failed to unban app. Please try again.</p>', [
+                                        { text: 'OK', class: '' }
+                                    ]);
+                                }
+                            } catch (error) {
+                                console.error('Error:', error);
+                                showModal('Error', '<p>An error occurred. Please try again.</p>', [
+                                    { text: 'OK', class: '' }
+                                ]);
+                            }
+                        }
+                    }
+                ]
+            );
         }
 
         // Initialize

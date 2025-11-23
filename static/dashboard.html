@@ -1411,24 +1411,43 @@
         }
 
         async function revokeApp(appId) {
-            if (!confirm('Are you sure you want to revoke access for this application?')) {
-                return;
-            }
-
-            try {
-                await fetch('/account/revoke-app', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': token,
-                        'Content-Type': 'application/json'
+            showModal(
+                'Revoke App Access',
+                '<p>Are you sure you want to revoke access for this application?</p><p>The app will no longer be able to access your information.</p>',
+                [
+                    {
+                        text: 'Cancel',
+                        class: 'secondary-button',
+                        action: () => {}
                     },
-                    body: JSON.stringify({ app_id: appId })
-                });
+                    {
+                        text: 'Revoke Access',
+                        class: 'danger-button',
+                        action: async () => {
+                            try {
+                                await fetch('/account/revoke-app', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': token,
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({ app_id: appId })
+                                });
 
-                loadAuthorizedApps();
-            } catch (error) {
-                console.error('Error revoking app:', error);
-            }
+                                loadAuthorizedApps();
+                                showModal('Success', '<p>App access revoked successfully.</p>', [
+                                    { text: 'OK', class: 'primary-button' }
+                                ]);
+                            } catch (error) {
+                                console.error('Error revoking app:', error);
+                                showModal('Error', '<p>Failed to revoke app access. Please try again.</p>', [
+                                    { text: 'OK', class: 'primary-button' }
+                                ]);
+                            }
+                        }
+                    }
+                ]
+            );
         }
 
         // Add event listener for apps tab
