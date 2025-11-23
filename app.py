@@ -2115,17 +2115,14 @@ def revoke_app():
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
         user = User.query.get(data["user_id"])
-        app_id = request.json.get("app_id")
+        auth_id = request.json.get("app_id")  # This is actually the authorization ID
 
         if not user:
             return jsonify({"message": "User not found"}), 404
 
-        oauth_app = OAuthApp.query.get(app_id)
-        if not oauth_app:
-            return jsonify({"message": "Application not found"}), 404
-
+        # Look up authorization by ID and verify it belongs to the user
         auth = OAuthAuthorization.query.filter_by(
-            app_id=oauth_app.id, user_id=user.id
+            id=auth_id, user_id=user.id
         ).first()
 
         if not auth:
