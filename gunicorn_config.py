@@ -3,7 +3,7 @@ Gunicorn configuration file for JoshAtticusID application
 """
 
 # Server socket binding
-bind = "0.0.0.0:5002"  # Same port as in Flask app
+bind = "0.0.0.0:3005"
 
 # Worker processes
 workers = 4  # Rule of thumb: 2-4 x number of CPU cores

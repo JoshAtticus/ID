@@ -8,29 +8,75 @@ from datetime import datetime, timedelta, timezone
 import uuid
 import pathlib
 import secrets
-from sqlalchemy import text  # Add this import at the top with other imports
+from sqlalchemy import text
 from urllib.parse import urlparse
 import base64
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "your_secret_key"
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL") or "sqlite:///users.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = "static/uploads"
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 app.config['COMMON_PASSWORDS_FILE'] = 'static/resources/common_passwords.txt'
+app.config['MAX_LOGIN_ATTEMPTS'] = 5
+app.config['LOGIN_TIMEOUT'] = 300
+app.config['SMTP_SERVER'] = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+app.config['SMTP_PORT'] = int(os.environ.get("SMTP_PORT", 587))
+app.config['SMTP_USERNAME'] = os.environ.get("SMTP_USERNAME")
+app.config['SMTP_PASSWORD'] = os.environ.get("SMTP_PASSWORD")
+app.config['SMTP_FROM_EMAIL'] = os.environ.get("SMTP_FROM_EMAIL")
+app.config['SMTP_FROM_NAME'] = os.environ.get("SMTP_FROM_NAME", "JoshAtticusID")
 
 db = SQLAlchemy(app)
 
-# Create uploads directory if it doesn't exist
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
 
 OAUTH_SCOPES = {
     "name": "Access your full name",
     "dob": "Access your date of birth",
     "email": "Access your email address",
     "profile_picture": "Access your profile picture",
+    "openid": "OpenID Connect authentication",
+    "profile": "Access your basic profile information",
 }
+
+
+@app.route("/.well-known/openid-configuration", methods=["GET"])
+def openid_configuration():
+    base_url = request.url_root.rstrip('/')
+    return jsonify({
+        "issuer": base_url,
+        "authorization_endpoint": f"{base_url}/oauth/authorize",
+        "token_endpoint": f"{base_url}/oauth/token",
+        "userinfo_endpoint": f"{base_url}/oauth/userinfo",
+        "revocation_endpoint": f"{base_url}/oauth/token/revoke",
+        "introspection_endpoint": f"{base_url}/oauth/token/introspect",
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code"],
+        "subject_types_supported": ["public"],
+        "id_token_signing_alg_values_supported": ["RS256"],
+        "scopes_supported": list(OAUTH_SCOPES.keys()),
+        "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
+        "claims_supported": ["sub", "name", "email", "email_verified", "picture", "birthdate"],
+        "code_challenge_methods_supported": ["S256"],
+    })
+
+
+@app.route("/.well-known/oauth-authorization-server", methods=["GET"])
+def oauth_metadata():
+    return openid_configuration()
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -39,6 +85,7 @@ class User(db.Model):
     email = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
     profile_picture = db.Column(db.String(255))
+    email_verified = db.Column(db.Boolean, default=False, nullable=False)
     sessions = db.relationship("Session", backref="user", lazy=True)
     login_history = db.relationship("LoginHistory", backref="user", lazy=True)
     has_accepted_legal = db.Column(db.Boolean, default=False, nullable=False)
@@ -48,6 +95,16 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+
+class EmailVerification(db.Model):
+    __tablename__ = "email_verification"
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(100), nullable=False)
+    code = db.Column(db.String(6), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    expires_at = db.Column(db.DateTime(timezone=True))
+    verified = db.Column(db.Boolean, default=False)
 
 
 class Session(db.Model):
@@ -172,11 +229,10 @@ def calculate_security_score(user, sessions):
 
 # Add this function after other utility functions
 def is_common_password(password):
-    """Check if password is in the common passwords list"""
     try:
         passwords_file = pathlib.Path(app.config['COMMON_PASSWORDS_FILE'])
         if not passwords_file.exists():
-            # Create file with some example common passwords if it doesn't exist
+            os.makedirs(passwords_file.parent, exist_ok=True)
             with open(passwords_file, 'w') as f:
                 f.write('password\n123456\nadmin\nqwerty\n12345678\n')
         
@@ -187,6 +243,173 @@ def is_common_password(password):
         print(f"Error checking common passwords: {str(e)}")
         return False
 
+def validate_password_strength(password):
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not any(c.isupper() for c in password):
+        return False, "Password must contain at least one uppercase letter"
+    if not any(c.islower() for c in password):
+        return False, "Password must contain at least one lowercase letter"
+    if not any(c.isdigit() for c in password):
+        return False, "Password must contain at least one number"
+    if is_common_password(password):
+        return False, "Password is too common"
+    return True, "Password is strong"
+
+def sanitize_redirect_url(url, allowed_domains=None):
+    if not url:
+        return None
+    if allowed_domains is None:
+        allowed_domains = ['id.joshattic.us', 'localhost']
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme and parsed.scheme not in ['http', 'https']:
+            return None
+        if parsed.netloc and parsed.netloc not in allowed_domains:
+            return None
+        return url
+    except Exception:
+        return None
+
+def send_verification_email(email, code):
+    try:
+        if not all([app.config['SMTP_USERNAME'], app.config['SMTP_PASSWORD'], app.config['SMTP_FROM_EMAIL']]):
+            print("SMTP configuration is missing")
+            return False
+
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'Verify Your Email - JoshAtticusID'
+        msg['From'] = f"{app.config['SMTP_FROM_NAME']} <{app.config['SMTP_FROM_EMAIL']}>"
+        msg['To'] = email
+
+        text_content = f"""
+Hello,
+
+Thank you for signing up for JoshAtticusID!
+
+Your verification code is: {code}
+
+This code will expire in 15 minutes.
+
+If you didn't request this verification, please ignore this email.
+
+Best regards,
+JoshAtticusID Team
+"""
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }}
+        h1 {{
+            color: #8ab4f8;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }}
+        .code {{
+            background: rgba(138, 180, 248, 0.1);
+            border: 2px solid #8ab4f8;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 8px;
+            color: #8ab4f8;
+            margin: 24px 0;
+        }}
+        p {{
+            line-height: 1.6;
+            color: #e8eaed;
+        }}
+        .footer {{
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Verify Your Email</h1>
+        <p>Thank you for signing up for JoshAtticusID!</p>
+        <p>Your verification code is:</p>
+        <div class="code">{code}</div>
+        <p>This code will expire in 15 minutes.</p>
+        <p>If you didn't request this verification, please ignore this email.</p>
+        <div class="footer">
+            <p>Best regards,<br>JoshAtticusID Team</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        part1 = MIMEText(text_content, 'plain')
+        part2 = MIMEText(html_content, 'html')
+        msg.attach(part1)
+        msg.attach(part2)
+
+        with smtplib.SMTP(app.config['SMTP_SERVER'], app.config['SMTP_PORT']) as server:
+            server.starttls()
+            server.login(app.config['SMTP_USERNAME'], app.config['SMTP_PASSWORD'])
+            server.send_message(msg)
+        
+        return True
+    except Exception as e:
+        print(f"Error sending email: {str(e)}")
+        return False
+
+def generate_verification_code():
+    return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+
+def validate_file_upload(file):
+    if not file or not file.filename:
+        return False, "No file provided"
+    
+    allowed_extensions = {'png', 'jpg', 'jpeg'}
+    filename = file.filename.lower()
+    
+    if not any(filename.endswith('.' + ext) for ext in allowed_extensions):
+        return False, "Invalid file type"
+    
+    magic_numbers = {
+        b'\x89PNG\r\n\x1a\n': 'png',
+        b'\xff\xd8\xff': 'jpeg'
+    }
+    
+    file.seek(0)
+    header = file.read(8)
+    file.seek(0)
+    
+    valid = False
+    for magic, ftype in magic_numbers.items():
+        if header.startswith(magic):
+            valid = True
+            break
+    
+    if not valid:
+        return False, "File content does not match extension"
+    
+    return True, "Valid file"
+
 @app.route("/account/create", methods=["POST"])
 def create_account():
     data = request.get_json()
@@ -194,16 +417,35 @@ def create_account():
     full_name = data.get("full_name")
     dob = data.get("dob")
     email = data.get("email")
+    verification_code = data.get("verification_code")
 
-    # Validate email format
-    if not email or "@" not in email:
+    if not email or "@" not in email or len(email) > 100:
         return jsonify({"message": "Invalid email format"}), 400
 
-    if not all([password, full_name, dob]):
+    if not all([password, full_name, dob, verification_code]):
         return jsonify({"message": "Missing required fields"}), 400
+    
+    if len(full_name) > 100:
+        return jsonify({"message": "Name is too long"}), 400
+
+    valid, msg = validate_password_strength(password)
+    if not valid:
+        return jsonify({"message": msg}), 400
 
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email already exists"}), 409
+
+    verification = EmailVerification.query.filter_by(
+        email=email,
+        code=verification_code,
+        verified=False
+    ).first()
+
+    if not verification:
+        return jsonify({"message": "Invalid verification code"}), 400
+
+    if datetime.now(timezone.utc) > verification.expires_at.replace(tzinfo=timezone.utc):
+        return jsonify({"message": "Verification code has expired"}), 400
 
     try:
         dob_date = datetime.strptime(dob, "%Y-%m-%d").date()
@@ -217,14 +459,84 @@ def create_account():
             full_name=full_name,
             dob=dob_date,
             email=email,
+            email_verified=True
         )
         new_user.set_password(password)
+        
+        verification.verified = True
+        
         db.session.add(new_user)
         db.session.commit()
         return jsonify({"message": "Account created successfully"}), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "Error creating account"}), 500
+
+
+@app.route("/account/send-verification", methods=["POST"])
+def send_verification():
+    data = request.get_json()
+    email = data.get("email")
+
+    if not email or "@" not in email or len(email) > 100:
+        return jsonify({"message": "Invalid email format"}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"message": "Email already exists"}), 409
+
+    code = generate_verification_code()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    existing = EmailVerification.query.filter_by(email=email, verified=False).first()
+    if existing:
+        existing.code = code
+        existing.expires_at = expires_at
+        existing.created_at = datetime.now(timezone.utc)
+    else:
+        verification = EmailVerification(
+            email=email,
+            code=code,
+            expires_at=expires_at
+        )
+        db.session.add(verification)
+
+    try:
+        db.session.commit()
+        
+        if send_verification_email(email, code):
+            return jsonify({"message": "Verification code sent"}), 200
+        else:
+            return jsonify({"message": "Error sending verification email"}), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Error processing request"}), 500
+
+
+@app.route("/account/check-verification", methods=["POST"])
+def check_verification():
+    data = request.get_json()
+    email = data.get("email")
+    code = data.get("code")
+
+    if not email or not code:
+        return jsonify({"valid": False, "message": "Missing email or code"}), 400
+
+    if len(code) != 6:
+        return jsonify({"valid": False, "message": "Code must be 6 digits"}), 400
+
+    verification = EmailVerification.query.filter_by(
+        email=email,
+        code=code,
+        verified=False
+    ).first()
+
+    if not verification:
+        return jsonify({"valid": False, "message": "Invalid verification code"}), 400
+
+    if datetime.now(timezone.utc) > verification.expires_at.replace(tzinfo=timezone.utc):
+        return jsonify({"valid": False, "message": "Verification code has expired"}), 400
+
+    return jsonify({"valid": True, "message": "Code is valid"}), 200
 
 
 @app.route("/account/login", methods=["POST"])
@@ -238,9 +550,8 @@ def login():
     if user and user.check_password(password):
         current_time = datetime.now(timezone.utc)  # Get current UTC time
 
-        # Generate token
         token = jwt.encode(
-            {"user_id": user.id, "exp": current_time + timedelta(hours=744)},
+            {"user_id": user.id, "exp": current_time + timedelta(hours=2)},
             app.config["SECRET_KEY"],
             algorithm="HS256",
         )
@@ -316,10 +627,16 @@ def get_user_details():
                 "email": user.email,
                 "dob": user.dob.strftime("%Y-%m-%d"),
                 "profile_picture": user.profile_picture,
+                "email_verified": user.email_verified,
             }
         )
-    except:
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
         return jsonify({"message": "Invalid token"}), 401
+    except Exception as e:
+        print(f"Error in get_user_details: {str(e)}")
+        return jsonify({"message": "Internal server error"}), 500
 
 
 @app.route("/account/profile-picture", methods=["POST"])
@@ -339,27 +656,31 @@ def upload_profile_picture():
         if file.filename == "":
             return jsonify({"message": "No file selected"}), 400
 
-        if file and file.filename.lower().endswith((".png", ".jpg", ".jpeg")):
-            filename = secure_filename(f"{user.id}_{file.filename}")
-            filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        valid, msg = validate_file_upload(file)
+        if not valid:
+            return jsonify({"message": msg}), 400
 
-            # Delete old profile picture if it exists
-            if user.profile_picture:
-                old_file = os.path.join(
-                    app.config["UPLOAD_FOLDER"], user.profile_picture
-                )
-                if os.path.exists(old_file):
-                    os.remove(old_file)
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = secure_filename(f"{user.id}_{secrets.token_hex(8)}.{ext}")
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
 
-            file.save(filepath)
-            user.profile_picture = filename
-            db.session.commit()
+        if user.profile_picture:
+            old_file = os.path.join(app.config["UPLOAD_FOLDER"], user.profile_picture)
+            if os.path.exists(old_file):
+                os.remove(old_file)
 
-            return jsonify({"message": "Profile picture updated", "filename": filename})
+        file.save(filepath)
+        user.profile_picture = filename
+        db.session.commit()
 
-        return jsonify({"message": "Invalid file type"}), 400
-    except:
+        return jsonify({"message": "Profile picture updated", "filename": filename})
+
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
         return jsonify({"message": "Invalid token"}), 401
+    except Exception as e:
+        return jsonify({"message": "Error uploading file"}), 500
 
 
 @app.route("/account/recommendations", methods=["GET"])
@@ -532,6 +853,12 @@ def oauth_authorize():
         redirect_uri = request.args.get("redirect_uri")
         scope = request.args.get("scope", "")
         state = request.args.get("state")
+        
+        if not state or len(state) < 8:
+            return jsonify({
+                "error": "invalid_request",
+                "error_description": "State parameter is required for security"
+            }), 400
 
         oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
         if not oauth_app:
@@ -559,11 +886,9 @@ def oauth_authorize():
                 "error_description": f"Invalid scopes: {[s for s in requested_scopes if s not in OAUTH_SCOPES]}"
             }), 400
 
-        # Render consent page (authorize.html) with params
         return send_from_directory("static", "authorize.html")
 
-    # POST: User submits consent (must be authenticated)
-    token = request.headers.get("Authorization")
+    token = request.headers.get("Authorization") or request.form.get("token")
     if not token:
         return jsonify({"error": "invalid_request", "error_description": "Token is missing"}), 401
     try:
@@ -571,14 +896,24 @@ def oauth_authorize():
         user = User.query.get(data["user_id"])
         if not user:
             return jsonify({"error": "invalid_request", "error_description": "User not found"}), 404
-        client_id = request.json.get("client_id")
-        scope = request.json.get("scope", "")
-        redirect_uri = request.json.get("redirect_uri")
-        state = request.json.get("state")
+        
+        if request.is_json:
+            client_id = request.json.get("client_id")
+            scope = request.json.get("scope", "")
+            redirect_uri = request.json.get("redirect_uri")
+            state = request.json.get("state")
+        else:
+            client_id = request.form.get("client_id")
+            scope = request.form.get("scope", "")
+            redirect_uri = request.form.get("redirect_uri")
+            state = request.form.get("state")
+        
+        if not state or len(state) < 8:
+            return jsonify({"error": "invalid_request", "error_description": "State parameter is required"}), 400
+        
         oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
         if not oauth_app:
             return jsonify({"error": "invalid_client"}), 400
-        # Validate redirect_uri
         try:
             registered_uri = urlparse(oauth_app.redirect_uri)
             request_uri = urlparse(redirect_uri)
@@ -591,7 +926,6 @@ def oauth_authorize():
         requested_scopes = scope.split()
         if not all(s in OAUTH_SCOPES for s in requested_scopes):
             return jsonify({"error": "invalid_scope"}), 400
-        # Issue authorization code
         code = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
         oauth_code = OAuthCode(
@@ -605,7 +939,6 @@ def oauth_authorize():
         )
         db.session.add(oauth_code)
         db.session.commit()
-        # Redirect to client with code and state
         from urllib.parse import urlencode
         params = {"code": code}
         if state:
@@ -750,8 +1083,6 @@ def oauth_token():
 
     oauth_app = OAuthApp.query.filter_by(client_id=client_id, client_secret=client_secret).first()
     if not oauth_app:
-        # Use a print statement to be 100% sure what the server sees before failing
-        print(f"Server rejected credentials: ID='{client_id}', Secret='{client_secret}'")
         return jsonify({"error": "invalid_client"}), 401
 
     # --- The rest of your function logic remains the same ---
@@ -806,7 +1137,51 @@ def oauth_token():
         "scope": oauth_code.scopes,
     })
 
-@app.route("/oauth/userinfo", methods=["GET"])
+
+@app.route("/oauth/token/revoke", methods=["POST"])
+def oauth_revoke():
+    token = request.form.get("token")
+    token_type_hint = request.form.get("token_type_hint", "access_token")
+    
+    if not token:
+        return jsonify({"error": "invalid_request"}), 400
+    
+    auth = OAuthAuthorization.query.filter_by(access_token=token).first()
+    if auth:
+        db.session.delete(auth)
+        db.session.commit()
+    
+    return '', 200
+
+
+@app.route("/oauth/token/introspect", methods=["POST"])
+def oauth_introspect():
+    token = request.form.get("token")
+    
+    if not token:
+        return jsonify({"active": False}), 200
+    
+    auth = OAuthAuthorization.query.filter_by(access_token=token).first()
+    
+    if not auth:
+        return jsonify({"active": False}), 200
+    
+    user = User.query.get(auth.user_id)
+    app = OAuthApp.query.get(auth.app_id)
+    
+    if not user or not app:
+        return jsonify({"active": False}), 200
+    
+    return jsonify({
+        "active": True,
+        "scope": auth.scopes,
+        "client_id": app.client_id,
+        "username": user.email,
+        "token_type": "Bearer",
+        "sub": str(user.id)
+    })
+
+@app.route("/oauth/userinfo", methods=["GET", "POST"])
 def oauth_userinfo():
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -815,22 +1190,27 @@ def oauth_userinfo():
     auth = OAuthAuthorization.query.filter_by(access_token=access_token).first()
     if not auth:
         return jsonify({"error": "invalid_token"}), 401
+    
+    auth.last_used = datetime.now(timezone.utc)
+    db.session.commit()
+    
     user = User.query.get(auth.user_id)
     scopes = auth.scopes.split()
     response = {
-        "sub": user.id
+        "sub": str(user.id)
     }
     if "name" in scopes:
         response["name"] = user.full_name
     if "dob" in scopes:
-        response["dob"] = user.dob.strftime("%Y-%m-%d")
+        response["birthdate"] = user.dob.strftime("%Y-%m-%d")
     if "email" in scopes:
         response["email"] = user.email
+        response["email_verified"] = True
     if "profile_picture" in scopes:
         if user.profile_picture:
-            response["profile_picture"] = f"https://id.joshattic.us/static/uploads/{user.profile_picture}"
+            response["picture"] = f"https://id.joshattic.us/static/uploads/{user.profile_picture}"
         else:
-            response["profile_picture"] = "https://id.joshattic.us/static/uploads/default.png"
+            response["picture"] = "https://id.joshattic.us/static/uploads/default.png"
     return jsonify(response)
 
 
@@ -1190,14 +1570,15 @@ def check_password():
         if not password:
             return jsonify({'message': 'Password is required'}), 400
 
-        is_common = is_common_password(password)
+        valid, msg = validate_password_strength(password)
         
         return jsonify({
-            'is_common': is_common,
-            'message': 'This is a commonly used password. Please choose a more secure password.' if is_common 
-                      else 'Password not found in common passwords list.'
+            'is_strong': valid,
+            'message': msg
         })
-    except:
+    except jwt.ExpiredSignatureError:
+        return jsonify({'message': 'Token has expired'}), 401
+    except jwt.InvalidTokenError:
         return jsonify({'message': 'Invalid token'}), 401
 
 # Add new route for changing password
@@ -1219,19 +1600,21 @@ def change_password():
             
         if not user.check_password(old_password):
             return jsonify({'message': 'Current password is incorrect'}), 401
-            
-        if is_common_password(new_password):
-            return jsonify({
-                'message': 'Cannot use a common password. Please choose a more secure password.',
-                'is_common': True
-            }), 400
+        
+        valid, msg = validate_password_strength(new_password)
+        if not valid:
+            return jsonify({'message': msg}), 400
             
         user.set_password(new_password)
         db.session.commit()
         
         return jsonify({'message': 'Password updated successfully'})
-    except:
+    except jwt.ExpiredSignatureError:
+        return jsonify({'message': 'Token has expired'}), 401
+    except jwt.InvalidTokenError:
         return jsonify({'message': 'Invalid token'}), 401
+    except Exception:
+        return jsonify({'message': 'Error changing password'}), 500
 
 @app.route('/account/accept-legal', methods=['POST'])
 def accept_legal():
@@ -1251,6 +1634,52 @@ def accept_legal():
     db.session.commit()
 
     return jsonify({'message': 'Legal terms accepted'}), 200
+
+
+@app.route('/account/update-profile', methods=['POST'])
+def update_profile():
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'message': 'Token is missing'}), 401
+
+    try:
+        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        user = User.query.get(data['user_id'])
+        
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+        
+        request_data = request.json
+        full_name = request_data.get('full_name')
+        dob = request_data.get('dob')
+        
+        if full_name:
+            if len(full_name) > 100:
+                return jsonify({'message': 'Name is too long'}), 400
+            user.full_name = full_name
+        
+        if dob:
+            try:
+                dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
+                today = datetime.now().date()
+                age = today.year - dob_date.year - ((today.month, today.day) < (dob_date.month, dob_date.day))
+                if age < 13:
+                    return jsonify({'message': 'You must be at least 13 years old'}), 400
+                user.dob = dob_date
+            except ValueError:
+                return jsonify({'message': 'Invalid date format'}), 400
+        
+        db.session.commit()
+        return jsonify({'message': 'Profile updated successfully'})
+        
+    except jwt.ExpiredSignatureError:
+        return jsonify({'message': 'Token has expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'message': 'Invalid token'}), 401
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating profile: {str(e)}")
+        return jsonify({'message': 'Error updating profile'}), 500
 
 
 ### Static Routes ###
@@ -1321,13 +1750,17 @@ def perform_migrations():
                 user_cols = connection.execute(text("PRAGMA table_info(user)")).all()
                 if not any(col[1] == 'has_accepted_legal' for col in user_cols):
                     print("Migrating database: Adding has_accepted_legal column to user table...")
-                    # Add the boolean column. NOT NULL with a DEFAULT is required for existing rows.
-                    # In SQLite, boolean is stored as INTEGER 0 (false) or 1 (true).
                     connection.execute(text("ALTER TABLE user ADD COLUMN has_accepted_legal BOOLEAN NOT NULL DEFAULT 0"))
                     print("Migration complete: user.has_accepted_legal added.")
 
+                # --- Migration 3: Add email_verified to user ---
+                user_cols = connection.execute(text("PRAGMA table_info(user)")).all()
+                if not any(col[1] == 'email_verified' for col in user_cols):
+                    print("Migrating database: Adding email_verified column to user table...")
+                    connection.execute(text("ALTER TABLE user ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT 0"))
+                    print("Migration complete: user.email_verified added.")
+
         except Exception as e:
-            # This outer catch is still useful for logging the error.
             print(f"Error during database migration: {str(e)}")
 
 

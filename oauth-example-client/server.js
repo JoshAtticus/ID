@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -7,6 +8,9 @@ const port = 3000;
 
 console.log('Loaded CLIENT_ID:', process.env.CLIENT_ID ? 'Present' : 'Missing');
 console.log('Loaded CLIENT_SECRET:', process.env.CLIENT_SECRET ? 'Present' : 'Missing');
+
+// Store state temporarily (in production, use sessions or Redis)
+const stateStore = new Map();
 
 app.get('/', (req, res) => {
     res.send(`
@@ -24,21 +28,61 @@ app.get('/', (req, res) => {
 });
 
 app.get('/login', (req, res) => {
-    // Request all available scopes
-    res.redirect(`http://localhost:5002/oauth/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=http://localhost:3000/callback&scope=name,email,profile_picture,dob`);
+    // Generate a secure random state parameter
+    const state = crypto.randomBytes(16).toString('hex');
+    
+    // Store the state temporarily (expires in 10 minutes)
+    stateStore.set(state, { timestamp: Date.now() });
+    
+    // Clean up old states
+    for (const [key, value] of stateStore.entries()) {
+        if (Date.now() - value.timestamp > 600000) { // 10 minutes
+            stateStore.delete(key);
+        }
+    }
+    
+    // Request all available scopes with state parameter (scopes are space-separated)
+    const authUrl = `http://localhost:5002/oauth/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=http://localhost:3000/callback&scope=name email profile_picture dob&state=${state}`;
+    res.redirect(authUrl);
 });
 
 app.get('/callback', async (req, res) => {
-    const { code } = req.query;
+    const { code, state } = req.query;
+    
+    // Verify state parameter
+    if (!state || !stateStore.has(state)) {
+        return res.send(`
+            <div style="
+                font-family: 'Google Sans', sans-serif;
+                max-width: 600px;
+                margin: 40px auto;
+                padding: 20px;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+                color: #d93025;
+            ">
+                <h2>Security Error</h2>
+                <p>Invalid state parameter. This could be a CSRF attack.</p>
+                <a href="/" style="color: #1a73e8;">← Try Again</a>
+            </div>
+        `);
+    }
+    
+    // Remove the state after validation
+    stateStore.delete(state);
     
     try {
         const params = new URLSearchParams();
+        params.append('grant_type', 'authorization_code');
         params.append('code', code);
         params.append('client_id', process.env.CLIENT_ID);
         params.append('client_secret', process.env.CLIENT_SECRET);
+        params.append('redirect_uri', 'http://localhost:3000/callback');
 
         // Add debug information
         console.log('Authorization Code:', code);
+        console.log('State:', state);
         console.log('Client ID:', process.env.CLIENT_ID);
         console.log('Client Secret:', process.env.CLIENT_SECRET);
 
@@ -82,6 +126,7 @@ app.get('/callback', async (req, res) => {
                 ">
                     <p><strong>Client ID:</strong> ${process.env.CLIENT_ID}</p>
                     <p><strong>Client Secret:</strong> ${process.env.CLIENT_SECRET}</p>
+                    <p><strong>State:</strong> ${state}</p>
                     <p><strong>Authorization Code:</strong> ${code}</p>
                     <p><strong>Access Token:</strong> ${accessToken}</p>
                     <p><strong>Token Type:</strong> ${tokenResponse.data.token_type}</p>

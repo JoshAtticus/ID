@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script defer data-domain="id.joshattic.us" src="https://plausible.joshatticus.site/js/script.file-downloads.outbound-links.js"></script>
+    <script src="/static/security.js"></script>
     <style>
         :root {
             --background-start-rgb: 10, 10, 10;
@@ -468,6 +469,246 @@
             visibility: visible;
             opacity: 1;
         }
+        
+        .edit-profile-button {
+            background: transparent;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 12px;
+        }
+        
+        .edit-profile-button:hover {
+            background: var(--primary-color);
+            color: var(--button-text-color);
+            box-shadow: 0 4px 15px 0 rgba(138, 180, 248, 0.4);
+            transform: translateY(-2px);
+        }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .header {
+                padding: 12px 16px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .logout-button {
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+
+            .container {
+                margin: 16px auto;
+                padding: 0 16px;
+            }
+
+            .welcome-card,
+            .info-card,
+            .security-section,
+            .recommendation-card,
+            .app-card {
+                padding: 16px;
+                margin-bottom: 16px;
+                border-radius: 8px;
+            }
+
+            .welcome-card h2 {
+                font-size: 20px;
+            }
+
+            .tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+            }
+
+            .tabs::-webkit-scrollbar {
+                display: none;
+            }
+
+            .tab {
+                padding: 12px 16px;
+                font-size: 14px;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+
+            .user-info {
+                grid-template-columns: 1fr;
+                gap: 12px;
+                margin-top: 16px;
+            }
+
+            .info-card h3 {
+                font-size: 12px;
+            }
+
+            .info-card p {
+                font-size: 15px;
+            }
+
+            .profile-header {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+
+            .profile-picture-container {
+                margin-bottom: 16px;
+            }
+
+            .profile-picture {
+                width: 80px;
+                height: 80px;
+            }
+
+            .edit-icon {
+                width: 28px;
+                height: 28px;
+                font-size: 12px;
+            }
+
+            .profile-info {
+                margin-left: 0;
+            }
+
+            .edit-profile-button {
+                width: 100%;
+                margin-top: 16px;
+            }
+
+            .score-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .score-display {
+                margin-left: 0;
+                margin-top: 8px;
+            }
+
+            .score-reason {
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .recommendation-card {
+                padding: 12px;
+            }
+
+            .recommendation-card h4 {
+                font-size: 16px;
+            }
+
+            .recommendation-card p {
+                font-size: 14px;
+            }
+
+            .app-card {
+                padding: 12px;
+            }
+
+            .app-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .app-actions {
+                margin-top: 12px;
+                width: 100%;
+            }
+
+            .app-actions button {
+                width: 100%;
+                margin-top: 8px;
+            }
+
+            .modal-content {
+                width: 90%;
+                max-width: 90%;
+                padding: 20px;
+                margin: 20px;
+            }
+
+            .modal h2 {
+                font-size: 20px;
+            }
+
+            .modal input[type="text"],
+            .modal input[type="date"] {
+                font-size: 16px;
+            }
+
+            .modal-buttons {
+                flex-direction: column-reverse;
+                gap: 8px;
+            }
+
+            .modal-buttons button {
+                width: 100%;
+            }
+
+            .session-card {
+                padding: 12px;
+            }
+
+            .session-actions {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .session-actions button {
+                width: 100%;
+            }
+
+            .footer {
+                font-size: 12px;
+                padding: 16px;
+            }
+
+            .footer a {
+                display: block;
+                margin: 4px 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 16px;
+            }
+
+            .logout-button {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            .welcome-card h2 {
+                font-size: 18px;
+            }
+
+            .welcome-card .email {
+                font-size: 13px;
+            }
+
+            .tab {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+
+            .modal-content {
+                width: 95%;
+                padding: 16px;
+            }
+        }
     </style>
 </head>
 
@@ -515,10 +756,12 @@
                     <div class="info-card">
                         <h3>Full Name</h3>
                         <p id="fullName">-</p>
+                        <button class="edit-profile-button" onclick="editName()">Edit</button>
                     </div>
                     <div class="info-card">
                         <h3>Date of Birth</h3>
                         <p id="dob"></p>
+                        <button class="edit-profile-button" onclick="editDob()">Edit</button>
                     </div>
                 </div>
             </div>
@@ -561,11 +804,79 @@
         </div>
     </div>
 
+    <!-- Notification Modal -->
+    <div id="notificationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb))); border-radius: 12px; padding: 32px; max-width: 400px; width: 90%; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); border: var(--tile-border);">
+            <h3 id="modalTitle" style="margin: 0 0 16px 0; color: var(--text-color);"></h3>
+            <p id="modalMessage" style="margin: 0 0 24px 0; color: var(--secondary-color);"></p>
+            <button onclick="closeNotificationModal()" style="background: var(--primary-color); color: var(--button-text-color); padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; width: 100%;">
+                OK
+            </button>
+        </div>
+    </div>
+
+    <!-- Input Modal -->
+    <div id="inputModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb))); border-radius: 12px; padding: 32px; max-width: 400px; width: 90%; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); border: var(--tile-border);">
+            <h3 id="inputModalTitle" style="margin: 0 0 16px 0; color: var(--text-color);"></h3>
+            <input type="text" id="inputModalField" style="width: 100%; padding: 13px 15px; border: 1px solid #5f6368; border-radius: 8px; font-size: 16px; color: var(--text-color); outline: none; box-sizing: border-box; background-color: #3c4043; margin-bottom: 24px;">
+            <div style="display: flex; gap: 12px;">
+                <button onclick="closeInputModal()" style="flex: 1; background: transparent; color: var(--primary-color); padding: 12px 24px; border: 1px solid var(--primary-color); border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;">
+                    Cancel
+                </button>
+                <button onclick="submitInputModal()" style="flex: 1; background: var(--primary-color); color: var(--button-text-color); padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+
     <footer class="footer">
         &copy; 2025 JoshAtticus | <a href="/privacy" style="color: var(--secondary-color);">Privacy Policy</a> | <a href="/terms" style="color: var(--secondary-color);">Terms of Service</a> | <a href="/developer" style="color: var(--secondary-color);">Developer Dashboard</a>
     </footer>
 
     <script>
+        let inputModalCallback = null;
+
+        function showNotification(title, message) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            const modal = document.getElementById('notificationModal');
+            modal.style.display = 'flex';
+        }
+
+        function closeNotificationModal() {
+            document.getElementById('notificationModal').style.display = 'none';
+        }
+
+        function showInputModal(title, defaultValue, callback) {
+            document.getElementById('inputModalTitle').textContent = title;
+            document.getElementById('inputModalField').value = defaultValue || '';
+            inputModalCallback = callback;
+            const modal = document.getElementById('inputModal');
+            modal.style.display = 'flex';
+            document.getElementById('inputModalField').focus();
+        }
+
+        function closeInputModal() {
+            document.getElementById('inputModal').style.display = 'none';
+            inputModalCallback = null;
+        }
+
+        function submitInputModal() {
+            const value = document.getElementById('inputModalField').value;
+            if (inputModalCallback) {
+                inputModalCallback(value);
+            }
+            closeInputModal();
+        }
+
+        document.getElementById('inputModalField').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                submitInputModal();
+            }
+        });
+
         function parseUserAgent(userAgent) {
             const parser = new UAParser(userAgent);
             const result = parser.getResult();
@@ -724,15 +1035,14 @@
 
                 const data = await response.json();
 
-                // Update all user information
                 document.getElementById('userName').textContent = data.full_name;
                 document.getElementById('fullName').textContent = data.full_name;
                 document.getElementById('email').textContent = data.email;
                 document.getElementById('dob').textContent = data.dob;
-                document.getElementById('accountStatus').textContent = data.account_status;
 
                 if (data.profile_picture) {
-                    document.getElementById('profilePicture').src = `/static/uploads/${data.profile_picture}`;
+                    const imgElement = document.getElementById('profilePicture');
+                    imgElement.src = `/static/uploads/${data.profile_picture}`;
                 }
             } catch (error) {
                 console.error('Error fetching user details:', error);
@@ -805,43 +1115,51 @@
 
                 recommendationsList.style.display = 'block';
                 noRecommendations.style.display = 'none';
-                recommendationsList.innerHTML = data.map(rec => {
-                    if (rec.action === 'redirect') {
-                        return `
-                            <div class="recommendation-card">
-                                <div class="recommendation-info">
-                                    <h4>${rec.title}</h4>
-                                    <p>${rec.description}</p>
-                                </div>
-                                <button class="recommendation-button" onclick="handleRecommendationAction('${rec.action}', '${rec.action_url}')">
-                                    Review Now
-                                </button>
-                            </div>
-                        `;
+                recommendationsList.innerHTML = '';
+                
+                data.forEach(rec => {
+                    const card = document.createElement('div');
+                    card.className = 'recommendation-card';
+                    
+                    const info = document.createElement('div');
+                    info.className = 'recommendation-info';
+                    
+                    const title = document.createElement('h4');
+                    title.textContent = rec.title || '';
+                    info.appendChild(title);
+                    
+                    const desc = document.createElement('p');
+                    desc.textContent = rec.description || '';
+                    info.appendChild(desc);
+                    
+                    card.appendChild(info);
+                    
+                    if (rec.action === 'redirect' && rec.action_url) {
+                        const validUrl = validateRedirect(rec.action_url);
+                        if (validUrl) {
+                            const btn = document.createElement('button');
+                            btn.className = 'recommendation-button';
+                            btn.textContent = 'Review Now';
+                            btn.addEventListener('click', () => {
+                                window.location.href = validUrl;
+                            });
+                            card.appendChild(btn);
+                        }
                     } else if (rec.action === 'set_profile_picture') {
-                        return `
-                            <div class="recommendation-card">
-                                <div class="recommendation-info">
-                                    <h4>${rec.message}</h4>
-                                </div>
-                                <button class="recommendation-button" onclick="handleRecommendationAction('${rec.action}')">
-                                    Set Profile Picture
-                                </button>
-                            </div>
-                        `;
+                        const btn = document.createElement('button');
+                        btn.className = 'recommendation-button';
+                        btn.textContent = 'Set Profile Picture';
+                        btn.addEventListener('click', () => {
+                            document.querySelector('[data-tab="personal-info"]').click();
+                            document.getElementById('profilePictureUpload').click();
+                        });
+                        card.appendChild(btn);
                     }
-                }).join('');
+                    
+                    recommendationsList.appendChild(card);
+                });
             } catch (error) {
                 console.error('Error fetching recommendations:', error);
-            }
-        }
-
-        function handleRecommendationAction(action, action_url) {
-            if (action === 'set_profile_picture') {
-                document.querySelector('[data-tab="personal-info"]').click();
-                document.getElementById('profilePictureUpload').click();
-            } else if (action === 'redirect') {
-                window.location.href = action_url;
             }
         }
 
@@ -962,40 +1280,72 @@
 
                 appsList.style.display = 'block';
                 noApps.style.display = 'none';
+                appsList.innerHTML = '';
 
-                appsList.innerHTML = data.apps.map(app => `
-                    <div class="app-card">
-                        <div class="app-info">
-                            <div class="app-name-container">
-                                <h4>
-                                    ${app.name}
-                                    ${app.verified ? `
-                                        <span class="verified-badge">
-                                            <svg viewBox="0 0 24 24">
-                                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                                            </svg>
-                                        </span>
-                                    ` : ''}
-                                </h4>
-                            </div>
-                            <p>Last used: ${app.last_used ? formatDate(app.last_used).relative : 'Never'}</p>
-                            <div class="scope-tags">
-                                ${app.scopes.map(scope => `
-                                    <span class="scope-tag">${scope}</span>
-                                `).join('')}
-                            </div>
-                        </div>
-                        <div class="app-actions">
-                            ${app.website ? `<a href="${app.website}" target="_blank" class="app-link">
-                                Visit Site
-                                <svg style="margin-left: 4px; width: 14px; height: 14px;" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M5 3c-1.093 0-2 .907-2 2v14c0 1.093.907 2 2 2h14c1.093 0 2-.907 2-2v-7h-2v7H5V5h7V3H5zm9 0v2h3.586l-9.293 9.293 1.414 1.414L19 6.414V10h2V3h-7z"/>
-                                </svg>
-                            </a>` : ''}
-                            <button onclick="revokeApp('${app.id}')" class="revoke-button">Revoke Access</button>
-                        </div>
-                    </div>
-                `).join('');
+                data.apps.forEach(app => {
+                    const card = document.createElement('div');
+                    card.className = 'app-card';
+                    
+                    const info = document.createElement('div');
+                    info.className = 'app-info';
+                    
+                    const nameContainer = document.createElement('div');
+                    nameContainer.className = 'app-name-container';
+                    
+                    const h4 = document.createElement('h4');
+                    h4.textContent = app.name || '';
+                    
+                    if (app.verified) {
+                        const badge = document.createElement('span');
+                        badge.className = 'verified-badge';
+                        badge.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`;
+                        h4.appendChild(badge);
+                    }
+                    
+                    nameContainer.appendChild(h4);
+                    info.appendChild(nameContainer);
+                    
+                    const lastUsed = document.createElement('p');
+                    lastUsed.textContent = `Last used: ${app.last_used ? formatDate(app.last_used).relative : 'Never'}`;
+                    info.appendChild(lastUsed);
+                    
+                    const scopeTags = document.createElement('div');
+                    scopeTags.className = 'scope-tags';
+                    app.scopes.forEach(scope => {
+                        const tag = document.createElement('span');
+                        tag.className = 'scope-tag';
+                        tag.textContent = scope;
+                        scopeTags.appendChild(tag);
+                    });
+                    info.appendChild(scopeTags);
+                    
+                    card.appendChild(info);
+                    
+                    const actions = document.createElement('div');
+                    actions.className = 'app-actions';
+                    
+                    if (app.website) {
+                        const sanitizedUrl = sanitizeUrl(app.website);
+                        if (sanitizedUrl) {
+                            const link = document.createElement('a');
+                            link.href = sanitizedUrl;
+                            link.target = '_blank';
+                            link.className = 'app-link';
+                            link.textContent = 'Visit Site';
+                            link.innerHTML += '<svg style="margin-left: 4px; width: 14px; height: 14px;" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3c-1.093 0-2 .907-2 2v14c0 1.093.907 2 2 2h14c1.093 0 2-.907 2-2v-7h-2v7H5V5h7V3H5zm9 0v2h3.586l-9.293 9.293 1.414 1.414L19 6.414V10h2V3h-7z"/></svg>';
+                            actions.appendChild(link);
+                        }
+                    }
+                    
+                    const revokeBtn = document.createElement('button');
+                    revokeBtn.className = 'revoke-button';
+                    revokeBtn.textContent = 'Revoke Access';
+                    revokeBtn.addEventListener('click', () => revokeApp(app.id));
+                    actions.appendChild(revokeBtn);
+                    
+                    card.appendChild(actions);
+                    appsList.appendChild(card);
+                });
             } catch (error) {
                 console.error('Error loading authorised apps:', error);
             }
@@ -1024,6 +1374,52 @@
 
         // Add event listener for apps tab
         document.querySelector('[data-tab="apps"]').addEventListener('click', loadAuthorizedApps);
+        
+        function editName() {
+            const currentName = document.getElementById('fullName').textContent;
+            showInputModal('Edit Name', currentName, (newName) => {
+                if (newName && newName !== currentName) {
+                    updateProfile({ full_name: newName });
+                }
+            });
+        }
+        
+        function editDob() {
+            const currentDob = document.getElementById('dob').textContent;
+            showInputModal('Edit Date of Birth (YYYY-MM-DD)', currentDob, (newDob) => {
+                if (newDob && newDob !== currentDob) {
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDob)) {
+                        showNotification('Invalid Format', 'Please use YYYY-MM-DD format for the date.');
+                        return;
+                    }
+                    updateProfile({ dob: newDob });
+                }
+            });
+        }
+        
+        async function updateProfile(updates) {
+            try {
+                const response = await fetch('/account/update-profile', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updates)
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    showNotification('Success', 'Profile updated successfully');
+                    fetchUserDetails();
+                } else {
+                    showNotification('Error', data.message || 'Error updating profile');
+                }
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                showNotification('Error', 'Error updating profile');
+            }
+        }
     </script>
 </body>
 

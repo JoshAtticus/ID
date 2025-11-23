@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script defer data-domain="id.joshattic.us" src="https://plausible.joshatticus.site/js/script.file-downloads.outbound-links.js"></script>
+    <script src="/static/security.js"></script>
     <style>
         :root {
             --background-start-rgb: 10, 10, 10;
@@ -144,6 +145,12 @@
             border: var(--tile-border);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
             animation: fadeIn 0.5s;
+            transition: all 0.3s ease;
+        }
+        
+        .app-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
         }
 
         @keyframes fadeIn {
@@ -167,22 +174,55 @@
             justify-content: space-between;
             align-items: center;
         }
+        
+        .app-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin: 16px 0;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: var(--secondary-color);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
 
         .app-actions button {
             background: none;
             border: none;
             color: var(--secondary-color);
             cursor: pointer;
-            padding: 4px;
+            padding: 4px 8px;
             font-size: 14px;
+            margin-left: 8px;
+            transition: all 0.3s ease;
+            border-radius: 4px;
         }
 
         .app-actions button:hover {
             color: var(--primary-color);
+            background: rgba(138, 180, 248, 0.1);
         }
         
         .app-actions button.danger-action:hover {
             color: #ea4335;
+            background: rgba(234, 67, 53, 0.1);
         }
 
         .secret-box {
@@ -287,6 +327,34 @@
             margin-top: 8px;
             margin-bottom: 0;
         }
+        
+        .copy-button {
+            background: rgba(138, 180, 248, 0.1);
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-left: 8px;
+        }
+        
+        .copy-button:hover {
+            background: var(--primary-color);
+            color: var(--button-text-color);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 64px 24px;
+            color: var(--secondary-color);
+        }
+        
+        .empty-state h3 {
+            color: var(--text-color);
+            margin-bottom: 16px;
+        }
 
         a {
             color: var(--primary-color);
@@ -361,6 +429,170 @@
         .danger-button:hover {
             background: #d33426;
             box-shadow: 0 4px 15px 0 rgba(234, 67, 53, 0.4);
+        }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -280px;
+                transition: left 0.3s ease;
+                z-index: 200;
+            }
+
+            .sidebar.open {
+                left: 0;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 16px;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .primary-button,
+            .secondary-button {
+                width: 100%;
+                margin-left: 0;
+                padding: 12px;
+            }
+
+            .app-card,
+            .create-app-form {
+                padding: 16px;
+            }
+
+            .app-card h3 {
+                font-size: 16px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .app-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+                padding: 12px;
+            }
+
+            .stat-value {
+                font-size: 20px;
+            }
+
+            .stat-label {
+                font-size: 11px;
+            }
+
+            .copy-button {
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+
+            .app-actions {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .app-actions button {
+                width: 100%;
+            }
+
+            .input-group {
+                margin-bottom: 16px;
+            }
+
+            .input-group label {
+                font-size: 14px;
+            }
+
+            .input-group input,
+            .input-group select {
+                font-size: 16px;
+                padding: 10px;
+            }
+
+            .redirect-uri-group {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .redirect-uri-group input {
+                width: 100%;
+            }
+
+            .remove-uri-btn {
+                width: 100%;
+            }
+
+            .modal-content {
+                width: 90%;
+                max-width: 90%;
+                padding: 20px;
+                margin: 20px;
+            }
+
+            .modal-header h3 {
+                font-size: 18px;
+            }
+
+            .modal-body {
+                font-size: 14px;
+            }
+
+            .modal-footer {
+                flex-direction: column-reverse;
+                gap: 8px;
+            }
+
+            .modal-footer button {
+                width: 100%;
+            }
+
+            .nav-links {
+                padding: 0;
+            }
+
+            .nav-links li a {
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+
+            .logo h2 {
+                font-size: 18px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 12px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .app-card,
+            .create-app-form {
+                padding: 12px;
+            }
+
+            .app-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-content {
+                width: 95%;
+                padding: 16px;
+            }
         }
     </style>
 </head>
@@ -543,32 +775,96 @@
                 .then(response => response.json())
                 .then(data => {
                     const appsList = document.getElementById('appsList');
-                    appsList.innerHTML = data.apps.map(app => `
-                    <div class="app-card" data-app-id="${app.id}">
-                        <h3>
-                            <span>${app.name}</span>
-                            <div class="app-actions">
-                                <button class="edit-btn">Edit</button>
-                                <button class="delete-btn">Delete</button>
+                    appsList.innerHTML = '';
+                    
+                    if (data.apps.length === 0) {
+                        appsList.innerHTML = `
+                            <div class="empty-state">
+                                <h3>No OAuth Applications</h3>
+                                <p>Create your first OAuth application to get started with JoshAtticusID integration.</p>
                             </div>
-                        </h3>
-                        <p><strong>Client ID:</strong></p>
-                        <div class="secret-box">${app.client_id}</div>
-                        <p><strong>Redirect URIs:</strong></p>
-                        <ul>
-                            ${app.redirect_uri.split(',').map(uri => `<li>${uri}</li>`).join('')}
-                        </ul>
-                        ${app.website ? `<p><strong>Website:</strong> <a href="${app.website}" target="_blank">${app.website}</a></p>` : ''}
-                        <p><strong>Created:</strong> ${new Date(app.created_at).toLocaleDateString()}</p>
-                    </div>
-                `).join('');
-
-                    // Add event listeners for buttons
-                    document.querySelectorAll('.edit-btn').forEach(button => {
-                        button.addEventListener('click', handleEditClick);
-                    });
-                    document.querySelectorAll('.delete-btn').forEach(button => {
-                        button.addEventListener('click', handleDeleteClick);
+                        `;
+                        return;
+                    }
+                    
+                    data.apps.forEach(app => {
+                        const card = document.createElement('div');
+                        card.className = 'app-card';
+                        card.dataset.appId = app.id;
+                        
+                        const h3 = document.createElement('h3');
+                        const nameSpan = document.createElement('span');
+                        nameSpan.textContent = app.name || '';
+                        h3.appendChild(nameSpan);
+                        
+                        const actions = document.createElement('div');
+                        actions.className = 'app-actions';
+                        
+                        const editBtn = document.createElement('button');
+                        editBtn.textContent = 'Edit';
+                        editBtn.addEventListener('click', handleEditClick);
+                        
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'danger-action';
+                        deleteBtn.textContent = 'Delete';
+                        deleteBtn.addEventListener('click', handleDeleteClick);
+                        
+                        actions.appendChild(editBtn);
+                        actions.appendChild(deleteBtn);
+                        h3.appendChild(actions);
+                        card.appendChild(h3);
+                        
+                        const clientIdLabel = document.createElement('p');
+                        clientIdLabel.innerHTML = '<strong>Client ID:</strong>';
+                        const copyClientIdBtn = document.createElement('button');
+                        copyClientIdBtn.className = 'copy-button';
+                        copyClientIdBtn.textContent = 'Copy';
+                        copyClientIdBtn.addEventListener('click', () => {
+                            navigator.clipboard.writeText(app.client_id);
+                            copyClientIdBtn.textContent = 'Copied!';
+                            setTimeout(() => copyClientIdBtn.textContent = 'Copy', 2000);
+                        });
+                        clientIdLabel.appendChild(copyClientIdBtn);
+                        card.appendChild(clientIdLabel);
+                        
+                        const clientIdBox = document.createElement('div');
+                        clientIdBox.className = 'secret-box';
+                        clientIdBox.textContent = app.client_id;
+                        card.appendChild(clientIdBox);
+                        
+                        const urisLabel = document.createElement('p');
+                        urisLabel.innerHTML = '<strong>Redirect URIs:</strong>';
+                        card.appendChild(urisLabel);
+                        
+                        const urisList = document.createElement('ul');
+                        app.redirect_uri.split(',').forEach(uri => {
+                            const li = document.createElement('li');
+                            li.textContent = uri;
+                            urisList.appendChild(li);
+                        });
+                        card.appendChild(urisList);
+                        
+                        if (app.website) {
+                            const websiteP = document.createElement('p');
+                            websiteP.innerHTML = '<strong>Website:</strong> ';
+                            const websiteLink = document.createElement('a');
+                            const sanitized = sanitizeUrl(app.website);
+                            if (sanitized) {
+                                websiteLink.href = sanitized;
+                                websiteLink.target = '_blank';
+                                websiteLink.textContent = app.website;
+                                websiteP.appendChild(websiteLink);
+                            } else {
+                                websiteP.appendChild(document.createTextNode(app.website));
+                            }
+                            card.appendChild(websiteP);
+                        }
+                        
+                        const createdP = document.createElement('p');
+                        createdP.innerHTML = '<strong>Created:</strong> ' + new Date(app.created_at).toLocaleDateString();
+                        card.appendChild(createdP);
+                        
+                        appsList.appendChild(card);
                     });
                 })
                 .catch(error => console.error('Error:', error));
@@ -653,14 +949,27 @@
 
                 const data = await response.json();
                 if (response.ok) {
-                    // Show success with new client secret in modal
+                    const bodyDiv = document.createElement('div');
+                    const p1 = document.createElement('p');
+                    p1.textContent = 'Your new OAuth application has been created.';
+                    
+                    const p2 = document.createElement('p');
+                    const strong = document.createElement('strong');
+                    strong.textContent = 'Important:';
+                    p2.appendChild(strong);
+                    p2.appendChild(document.createTextNode(' Please save your client secret now. It will not be shown again.'));
+                    
+                    const secretBox = document.createElement('div');
+                    secretBox.className = 'secret-box';
+                    secretBox.textContent = data.app.client_secret;
+                    
+                    bodyDiv.appendChild(p1);
+                    bodyDiv.appendChild(p2);
+                    bodyDiv.appendChild(secretBox);
+                    
                     modal.show({
                         title: 'App Created Successfully',
-                        body: `
-                            <p>Your new OAuth application has been created.</p>
-                            <p><strong>Important:</strong> Please save your client secret now. It will not be shown again.</p>
-                            <div class="secret-box">${data.app.client_secret}</div>
-                        `,
+                        body: bodyDiv.innerHTML,
                         buttons: [
                             {
                                 text: 'Done',
@@ -675,9 +984,11 @@
                         ]
                     });
                 } else {
+                    const p = document.createElement('p');
+                    p.textContent = data.message || 'Error creating app';
                     modal.show({
                         title: 'Error',
-                        body: `<p>${data.message || 'Error creating app'}</p>`,
+                        body: p.outerHTML,
                         buttons: [{text: 'OK', class: 'primary-button'}]
                     });
                 }
@@ -727,12 +1038,27 @@
             const appId = document.getElementById('editAppId').value;
             const appName = document.getElementById('editAppName').value;
             
+            const nameStrong = document.createElement('strong');
+            nameStrong.textContent = appName;
+            
+            const bodyDiv = document.createElement('div');
+            const p1 = document.createElement('p');
+            p1.textContent = 'Are you sure you want to regenerate the client secret for ';
+            p1.appendChild(nameStrong);
+            p1.appendChild(document.createTextNode('?'));
+            
+            const p2 = document.createElement('p');
+            const warningStrong = document.createElement('strong');
+            warningStrong.textContent = 'Warning:';
+            p2.appendChild(warningStrong);
+            p2.appendChild(document.createTextNode(' This action cannot be undone. Your previous client secret will immediately stop working, and any applications using it will need to be updated.'));
+            
+            bodyDiv.appendChild(p1);
+            bodyDiv.appendChild(p2);
+            
             modal.show({
                 title: 'Regenerate Client Secret',
-                body: `
-                    <p>Are you sure you want to regenerate the client secret for <strong>${appName}</strong>?</p>
-                    <p><strong>Warning:</strong> This action cannot be undone. Your previous client secret will immediately stop working, and any applications using it will need to be updated.</p>
-                `,
+                body: bodyDiv.innerHTML,
                 buttons: [
                     {
                         text: 'Cancel',
@@ -758,19 +1084,28 @@
                 
                 const data = await response.json();
                 if (response.ok) {
-                    // Show the new secret in another modal
+                    const bodyDiv = document.createElement('div');
+                    const p = document.createElement('p');
+                    p.textContent = "Your new client secret has been generated. Please save it now, as it won't be shown again:";
+                    
+                    const secretBox = document.createElement('div');
+                    secretBox.className = 'secret-box';
+                    secretBox.textContent = data.client_secret;
+                    
+                    bodyDiv.appendChild(p);
+                    bodyDiv.appendChild(secretBox);
+                    
                     modal.show({
                         title: 'New Client Secret Generated',
-                        body: `
-                            <p>Your new client secret has been generated. Please save it now, as it won't be shown again:</p>
-                            <div class="secret-box">${data.client_secret}</div>
-                        `,
+                        body: bodyDiv.innerHTML,
                         buttons: [{text: 'Done', class: 'primary-button'}]
                     });
                 } else {
+                    const p = document.createElement('p');
+                    p.textContent = data.message || 'Error regenerating client secret';
                     modal.show({
                         title: 'Error',
-                        body: `<p>${data.message || 'Error regenerating client secret'}</p>`,
+                        body: p.outerHTML,
                         buttons: [{text: 'OK', class: 'primary-button'}]
                     });
                 }
@@ -823,9 +1158,11 @@
                         ]
                     });
                 } else {
+                    const p = document.createElement('p');
+                    p.textContent = data.message || 'Error updating app';
                     modal.show({
                         title: 'Error',
-                        body: `<p>${data.message || 'Error updating app'}</p>`,
+                        body: p.outerHTML,
                         buttons: [{text: 'OK', class: 'primary-button'}]
                     });
                 }
@@ -844,12 +1181,26 @@
             const appId = appCard.dataset.appId;
             const appName = appCard.querySelector('h3 span').textContent;
 
+            const bodyDiv = document.createElement('div');
+            const p1 = document.createElement('p');
+            p1.textContent = 'Are you sure you want to delete the app ';
+            const strong = document.createElement('strong');
+            strong.textContent = appName;
+            p1.appendChild(strong);
+            p1.appendChild(document.createTextNode('?'));
+            
+            const p2 = document.createElement('p');
+            const warningStrong = document.createElement('strong');
+            warningStrong.textContent = 'Warning:';
+            p2.appendChild(warningStrong);
+            p2.appendChild(document.createTextNode(' This action cannot be undone and will immediately revoke access for all users.'));
+            
+            bodyDiv.appendChild(p1);
+            bodyDiv.appendChild(p2);
+
             modal.show({
                 title: 'Delete OAuth App',
-                body: `
-                    <p>Are you sure you want to delete the app <strong>${appName}</strong>?</p>
-                    <p><strong>Warning:</strong> This action cannot be undone and will immediately revoke access for all users.</p>
-                `,
+                body: bodyDiv.innerHTML,
                 buttons: [
                     {
                         text: 'Cancel',
@@ -880,9 +1231,11 @@
                                         ]
                                     });
                                 } else {
+                                    const errorP = document.createElement('p');
+                                    errorP.textContent = data.message || 'Error deleting app';
                                     modal.show({
                                         title: 'Error',
-                                        body: `<p>${data.message || 'Error deleting app'}</p>`,
+                                        body: errorP.outerHTML,
                                         buttons: [{text: 'OK', class: 'primary-button'}]
                                     });
                                 }

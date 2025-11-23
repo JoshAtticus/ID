@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script defer data-domain="id.joshattic.us" src="https://plausible.joshatticus.site/js/script.file-downloads.outbound-links.js"></script>
+    <script src="/static/security.js"></script>
     <style>
         :root {
             --background-start-rgb: 10, 10, 10;
@@ -174,9 +175,26 @@
             display: none;
         }
 
+        .success-text {
+            color: #81c995;
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+
         input.error {
             border-color: var(--danger-color);
             animation: shake 0.3s;
+        }
+
+        input.success {
+            border-color: #81c995;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
         }
 
         .step {
@@ -282,6 +300,127 @@
             text-decoration: underline;
             color: #9ac0f9;
         }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .login-container {
+                padding: 24px 20px;
+                margin: 20px;
+                width: auto;
+            }
+
+            .login-container h2 {
+                font-size: 24px;
+            }
+
+            .progress-bar {
+                margin-bottom: 20px;
+            }
+
+            .progress-step {
+                width: 26px;
+                height: 26px;
+                font-size: 12px;
+            }
+
+            .step h3 {
+                font-size: 18px;
+            }
+
+            .step p {
+                font-size: 13px;
+            }
+
+            .input-group {
+                margin-bottom: 16px;
+            }
+
+            .input-group input {
+                font-size: 16px;
+                padding: 12px;
+            }
+
+            .input-group label {
+                font-size: 14px;
+            }
+
+            button {
+                padding: 12px;
+                font-size: 15px;
+            }
+
+            .buttons-container {
+                flex-direction: column-reverse;
+                gap: 12px;
+            }
+
+            .buttons-container button {
+                width: 100%;
+            }
+
+            .review-item {
+                padding: 12px;
+            }
+
+            .review-label {
+                font-size: 11px;
+            }
+
+            .review-value {
+                font-size: 15px;
+            }
+
+            .modal-content {
+                width: 90%;
+                max-width: 90%;
+                padding: 20px;
+                margin: 20px;
+            }
+
+            .modal h2 {
+                font-size: 20px;
+            }
+
+            .modal p {
+                font-size: 14px;
+            }
+
+            .modal-buttons {
+                flex-direction: column-reverse;
+                gap: 8px;
+            }
+
+            .modal-buttons button {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 20px 16px;
+                margin: 12px;
+            }
+
+            .login-container h2 {
+                font-size: 22px;
+            }
+
+            .progress-step {
+                width: 24px;
+                height: 24px;
+                font-size: 11px;
+            }
+
+            .step h3 {
+                font-size: 16px;
+                margin-bottom: 16px;
+            }
+
+            .modal-content {
+                width: 95%;
+                padding: 16px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -294,6 +433,7 @@
             <div class="progress-step" data-step="3">3</div>
             <div class="progress-step" data-step="4">4</div>
             <div class="progress-step" data-step="5">5</div>
+            <div class="progress-step" data-step="6">6</div>
         </div>
 
         <form id="signupForm">
@@ -317,8 +457,25 @@
                 </div>
             </div>
 
-            <!-- Step 3: DOB -->
+            <!-- Step 3: Verify Email -->
             <div class="step" data-step="3">
+                <h3 style="margin-bottom: 20px;">Verify your email</h3>
+                <p style="color: var(--secondary-color); font-size: 14px; margin-bottom: 20px;">
+                    We've sent a 6-digit code to <span id="verification-email" style="color: var(--primary-color);"></span>
+                </p>
+                <div class="input-group">
+                    <input type="text" id="verification_code" name="verification_code" required placeholder=" " maxlength="6" pattern="[0-9]{6}" autocomplete="off">
+                    <label for="verification_code">Verification Code</label>
+                    <div class="error-text" id="verification-error"></div>
+                    <div class="success-text" id="verification-success">✓ Code verified!</div>
+                </div>
+                <button type="button" id="resendCode" style="margin-top: 16px; background: transparent; color: var(--primary-color); border: 1px solid var(--primary-color); text-transform: none;">
+                    Resend Code
+                </button>
+            </div>
+
+            <!-- Step 4: DOB -->
+            <div class="step" data-step="4">
                 <h3 style="margin-bottom: 20px;">When were you born?</h3>
                 <div class="input-group">
                     <input type="date" id="dob" name="dob" required placeholder=" ">
@@ -327,8 +484,8 @@
                 </div>
             </div>
 
-            <!-- Step 4: Password -->
-            <div class="step" data-step="4">
+            <!-- Step 5: Password -->
+            <div class="step" data-step="5">
                 <h3 style="margin-bottom: 20px;">Create a secure password</h3>
                 <div class="input-group">
                     <input type="password" id="password" name="password" required placeholder=" ">
@@ -342,8 +499,8 @@
                 </div>
             </div>
 
-            <!-- Step 5: Review -->
-            <div class="step" data-step="5">
+            <!-- Step 6: Review -->
+            <div class="step" data-step="6">
                 <h3 style="margin-bottom: 20px;">Confirm your details are correct</h3>
                 <div class="review-item">
                     <div class="review-label">Full Name</div>
@@ -377,9 +534,34 @@
         </div>
     </div>
 
+    <!-- Notification Modal -->
+    <div id="notificationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb))); border-radius: 12px; padding: 32px; max-width: 400px; width: 90%; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); border: var(--tile-border);">
+            <h3 id="modalTitle" style="margin: 0 0 16px 0; color: var(--text-color);"></h3>
+            <p id="modalMessage" style="margin: 0 0 24px 0; color: var(--secondary-color);"></p>
+            <button onclick="closeNotificationModal()" style="background: var(--primary-color); color: var(--button-text-color); padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; width: 100%;">
+                OK
+            </button>
+        </div>
+    </div>
+
     <script>
+        function showNotification(title, message) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            const modal = document.getElementById('notificationModal');
+            modal.style.display = 'flex';
+        }
+
+        function closeNotificationModal() {
+            document.getElementById('notificationModal').style.display = 'none';
+        }
+
         let currentStep = 1;
-        const totalSteps = 5;
+        const totalSteps = 6;
+        let emailSent = false;
+        let codeVerified = false;
+        let verificationTimeout = null;
 
         function updateProgressBar() {
             const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
@@ -413,26 +595,142 @@
             updateProgressBar();
         }
 
-        function validateStep(step) {
+        async function checkVerificationCode() {
+            const code = document.getElementById('verification_code').value;
+            const email = document.getElementById('email').value;
+            const verificationError = document.getElementById('verification-error');
+            const verificationSuccess = document.getElementById('verification-success');
+            const codeInput = document.getElementById('verification_code');
+
+            if (code.length !== 6) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/account/check-verification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, code })
+                });
+
+                const data = await response.json();
+
+                if (data.valid) {
+                    codeVerified = true;
+                    verificationError.style.display = 'none';
+                    verificationSuccess.style.display = 'block';
+                    codeInput.classList.remove('error');
+                    codeInput.classList.add('success');
+                } else {
+                    codeVerified = false;
+                    verificationError.textContent = data.message;
+                    verificationError.style.display = 'block';
+                    verificationSuccess.style.display = 'none';
+                    codeInput.classList.remove('success');
+                    codeInput.classList.add('error');
+                }
+            } catch (error) {
+                console.error('Error verifying code:', error);
+            }
+        }
+
+        document.getElementById('verification_code').addEventListener('input', (e) => {
+            const input = e.target;
+            input.value = input.value.replace(/[^0-9]/g, '');
+            
+            if (verificationTimeout) {
+                clearTimeout(verificationTimeout);
+            }
+
+            const verificationError = document.getElementById('verification-error');
+            const verificationSuccess = document.getElementById('verification-success');
+            
+            if (input.value.length < 6) {
+                verificationError.style.display = 'none';
+                verificationSuccess.style.display = 'none';
+                input.classList.remove('error', 'success');
+                codeVerified = false;
+            } else if (input.value.length === 6) {
+                verificationTimeout = setTimeout(checkVerificationCode, 500);
+            }
+        });
+
+        async function sendVerificationCode() {
+            const email = document.getElementById('email').value;
+            const errorElement = document.getElementById('email-error');
+            
+            try {
+                const response = await fetch('/account/send-verification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    emailSent = true;
+                    document.getElementById('verification-email').textContent = email;
+                    return true;
+                } else {
+                    errorElement.textContent = data.message;
+                    errorElement.style.display = 'block';
+                    document.getElementById('email').classList.add('error');
+                    return false;
+                }
+            } catch (error) {
+                errorElement.textContent = 'Error sending verification code';
+                errorElement.style.display = 'block';
+                return false;
+            }
+        }
+
+        async function validateStep(step) {
             switch(step) {
                 case 1:
                     const fullName = document.getElementById('full_name');
                     return fullName.checkValidity();
                 case 2:
                     const email = document.getElementById('email');
+                    const errorElement = document.getElementById('email-error');
                     if (!email.checkValidity() || email.value.indexOf('@') === -1) {
-                        const errorElement = document.getElementById('email-error');
                         errorElement.textContent = 'Please enter a valid email.';
                         errorElement.style.display = 'block';
                         email.classList.add('error');
                         return false;
-                    } else {
-                        const errorElement = document.getElementById('email-error');
+                    }
+                    
+                    if (!emailSent) {
                         errorElement.style.display = 'none';
                         email.classList.remove('error');
-                        return true;
+                        const sent = await sendVerificationCode();
+                        return sent;
                     }
+                    return true;
                 case 3:
+                    const verificationCode = document.getElementById('verification_code');
+                    const verificationError = document.getElementById('verification-error');
+                    if (!verificationCode.checkValidity() || verificationCode.value.length !== 6) {
+                        verificationError.textContent = 'Please enter a valid 6-digit code.';
+                        verificationError.style.display = 'block';
+                        verificationCode.classList.add('error');
+                        return false;
+                    }
+                    if (!codeVerified) {
+                        verificationError.textContent = 'Please wait for code verification...';
+                        verificationError.style.display = 'block';
+                        verificationCode.classList.add('error');
+                        await checkVerificationCode();
+                        return codeVerified;
+                    }
+                    verificationError.style.display = 'none';
+                    verificationCode.classList.remove('error');
+                    return true;
+                case 4:
                     const dobInput = document.getElementById('dob');
                     const dobError = document.getElementById('dob-error');
 
@@ -457,17 +755,17 @@
                         dobInput.classList.remove('error');
                     }
                     return true;
-                case 4:
+                case 5:
                     const password = document.getElementById('password');
                     const confirmPassword = document.getElementById('confirm_password');
-                    const errorElement = document.getElementById('confirm-password-error');
+                    const pwErrorElement = document.getElementById('confirm-password-error');
                     if (password.value !== confirmPassword.value) {
-                        errorElement.textContent = 'Passwords do not match.';
-                        errorElement.style.display = 'block';
+                        pwErrorElement.textContent = 'Passwords do not match.';
+                        pwErrorElement.style.display = 'block';
                         confirmPassword.classList.add('error');
                         return false;
                     } else {
-                        errorElement.style.display = 'none';
+                        pwErrorElement.style.display = 'none';
                         confirmPassword.classList.remove('error');
                     }
                     return password.checkValidity() && confirmPassword.checkValidity();
@@ -482,8 +780,8 @@
             document.getElementById('review-dob').textContent = document.getElementById('dob').value;
         }
 
-        document.getElementById('nextBtn').addEventListener('click', () => {
-            if (validateStep(currentStep)) {
+        document.getElementById('nextBtn').addEventListener('click', async () => {
+            if (await validateStep(currentStep)) {
                 currentStep++;
                 showStep(currentStep);
                 if (currentStep === totalSteps) {
@@ -497,12 +795,35 @@
             showStep(currentStep);
         });
 
+        document.getElementById('resendCode').addEventListener('click', async () => {
+            emailSent = false;
+            codeVerified = false;
+            const button = document.getElementById('resendCode');
+            const codeInput = document.getElementById('verification_code');
+            const verificationError = document.getElementById('verification-error');
+            const verificationSuccess = document.getElementById('verification-success');
+            
+            button.disabled = true;
+            button.textContent = 'Sending...';
+            
+            codeInput.value = '';
+            codeInput.classList.remove('error', 'success');
+            verificationError.style.display = 'none';
+            verificationSuccess.style.display = 'none';
+            
+            await sendVerificationCode();
+            
+            button.disabled = false;
+            button.textContent = 'Resend Code';
+        });
+
         document.getElementById('signupForm').addEventListener('submit', async function(event) {
             event.preventDefault();
             const full_name = document.getElementById('full_name').value;
             const dob = document.getElementById('dob').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
+            const verification_code = document.getElementById('verification_code').value;
 
             try {
                 const response = await fetch('/account/create', {
@@ -514,23 +835,24 @@
                         full_name, 
                         dob, 
                         email, 
-                        password 
+                        password,
+                        verification_code
                     })
                 });
 
                 const data = await response.json();
                 
                 if (response.ok) {
-                    window.location.href = '/';  // Redirect to login page
+                    window.location.href = '/';
                 } else {
-                    alert(data.message);
+                    showNotification('Error', data.message);
                 }
             } catch (error) {
                 console.error('Error:', error);
+                showNotification('Error', 'An error occurred during signup. Please try again.');
             }
         });
 
-        // Initialize the form
         showStep(1);
     </script>
 </body>
