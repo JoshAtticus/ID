@@ -865,12 +865,52 @@
         </div>
     </div>
 
+    <!-- Flexible Modal -->
+    <div id="flexModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: linear-gradient(to bottom, rgb(var(--tile-start-rgb)), rgb(var(--tile-end-rgb))); border-radius: 12px; padding: 32px; max-width: 500px; width: 90%; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); border: var(--tile-border);">
+            <h3 id="flexModalTitle" style="margin: 0 0 16px 0; color: var(--text-color);"></h3>
+            <div id="flexModalBody" style="margin: 0 0 24px 0; color: var(--secondary-color);"></div>
+            <div id="flexModalButtons" style="display: flex; gap: 12px; justify-content: flex-end;"></div>
+        </div>
+    </div>
+
     <footer class="footer">
         &copy; 2025 JoshAtticus | <a href="/privacy" style="color: var(--secondary-color);">Privacy Policy</a> | <a href="/terms" style="color: var(--secondary-color);">Terms of Service</a> | <a href="/developer" style="color: var(--secondary-color);">Developer Dashboard</a> <a href="/admin" id="adminPanelLink" style="color: var(--secondary-color); display: none;">Admin Panel</a></p>
     </footer>
 
     <script>
         let inputModalCallback = null;
+
+        function showModal(title, body, buttons) {
+            const modal = document.getElementById('flexModal');
+            document.getElementById('flexModalTitle').textContent = title;
+            document.getElementById('flexModalBody').innerHTML = body;
+            
+            const buttonContainer = document.getElementById('flexModalButtons');
+            buttonContainer.innerHTML = '';
+            
+            buttons.forEach(btn => {
+                const button = document.createElement('button');
+                button.textContent = btn.text;
+                
+                // Apply button styling based on class
+                if (btn.class === 'danger-button') {
+                    button.style.cssText = 'flex: 1; background: var(--danger-color); color: var(--button-text-color); padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;';
+                } else if (btn.class === 'secondary-button') {
+                    button.style.cssText = 'flex: 1; background: transparent; color: var(--primary-color); padding: 12px 24px; border: 1px solid var(--primary-color); border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;';
+                } else {
+                    button.style.cssText = 'flex: 1; background: var(--primary-color); color: var(--button-text-color); padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;';
+                }
+                
+                button.onclick = () => {
+                    modal.style.display = 'none';
+                    if (btn.action) btn.action();
+                };
+                buttonContainer.appendChild(button);
+            });
+            
+            modal.style.display = 'flex';
+        }
 
         function showNotification(title, message) {
             document.getElementById('modalTitle').textContent = title;
