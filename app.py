@@ -86,6 +86,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(120), nullable=False)
     profile_picture = db.Column(db.String(255))
     email_verified = db.Column(db.Boolean, default=False, nullable=False)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
     sessions = db.relationship("Session", backref="user", lazy=True)
     login_history = db.relationship("LoginHistory", backref="user", lazy=True)
     has_accepted_legal = db.Column(db.Boolean, default=False, nullable=False)
@@ -142,6 +143,7 @@ class OAuthApp(db.Model):
     redirect_uri = db.Column(db.String(500), nullable=False)
     website = db.Column(db.String(500))
     verified = db.Column(db.Boolean, default=False)
+    banned = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -455,11 +457,16 @@ def create_account():
         if age < 13:
             return jsonify({"message": "You must be at least 13 years old to sign up."}), 400
 
+        # Check if this is the first user (make them admin)
+        user_count = User.query.count()
+        is_first_user = user_count == 0
+
         new_user = User(
             full_name=full_name,
             dob=dob_date,
             email=email,
-            email_verified=True
+            email_verified=True,
+            is_admin=is_first_user
         )
         new_user.set_password(password)
         
@@ -467,7 +474,21 @@ def create_account():
         
         db.session.add(new_user)
         db.session.commit()
-        return jsonify({"message": "Account created successfully"}), 201
+        
+        # Auto-login: Generate JWT token for the new user
+        token = jwt.encode(
+            {
+                "user_id": new_user.id,
+                "exp": datetime.now(timezone.utc) + timedelta(hours=2)
+            },
+            app.config["SECRET_KEY"],
+            algorithm="HS256"
+        )
+        
+        return jsonify({
+            "message": "Account created successfully",
+            "token": token
+        }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "Error creating account"}), 500
@@ -866,6 +887,13 @@ def oauth_authorize():
                 "error": "invalid_client",
                 "error_description": "No application found with this client ID"
             }), 400
+        
+        if oauth_app.banned:
+            return jsonify({
+                "error": "access_denied",
+                "error_description": "This application has been banned by administrators"
+            }), 403
+        
         try:
             registered_uri = urlparse(oauth_app.redirect_uri)
             request_uri = urlparse(redirect_uri)
@@ -1698,6 +1726,214 @@ def dashboard():
     return send_from_directory("static", "dashboard.html")
 
 
+# Admin endpoints
+@app.route("/admin")
+def admin_panel():
+    return send_from_directory("static", "admin.html")
+
+
+@app.route("/admin/apps", methods=["GET"])
+def admin_list_all_apps():
+    """Admin endpoint to list all OAuth apps"""
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Token is missing"}), 401
+
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        
+        if not user or not user.is_admin:
+            return jsonify({"message": "Unauthorized - Admin access required"}), 403
+
+        apps = OAuthApp.query.all()
+        apps_list = []
+        for app in apps:
+            owner = User.query.get(app.user_id)
+            apps_list.append({
+                "id": app.id,
+                "name": app.name,
+                "client_id": app.client_id,
+                "redirect_uri": app.redirect_uri,
+                "website": app.website,
+                "verified": app.verified,
+                "banned": app.banned,
+                "created_at": app.created_at.isoformat(),
+                "owner_email": owner.email if owner else "Unknown",
+                "owner_name": owner.full_name if owner else "Unknown"
+            })
+        
+        return jsonify(apps_list), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid token"}), 401
+
+
+@app.route("/admin/apps/<app_id>/verify", methods=["POST"])
+def admin_verify_app(app_id):
+    """Admin endpoint to verify an OAuth app"""
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Token is missing"}), 401
+
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        
+        if not user or not user.is_admin:
+            return jsonify({"message": "Unauthorized - Admin access required"}), 403
+
+        app = OAuthApp.query.get(app_id)
+        if not app:
+            return jsonify({"message": "App not found"}), 404
+
+        app.verified = True
+        db.session.commit()
+        
+        return jsonify({"message": "App verified successfully"}), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid token"}), 401
+
+
+@app.route("/admin/apps/<app_id>/unverify", methods=["POST"])
+def admin_unverify_app(app_id):
+    """Admin endpoint to unverify an OAuth app"""
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Token is missing"}), 401
+
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        
+        if not user or not user.is_admin:
+            return jsonify({"message": "Unauthorized - Admin access required"}), 403
+
+        app = OAuthApp.query.get(app_id)
+        if not app:
+            return jsonify({"message": "App not found"}), 404
+
+        app.verified = False
+        db.session.commit()
+        
+        return jsonify({"message": "App unverified successfully"}), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid token"}), 401
+
+
+@app.route("/admin/apps/<app_id>/ban", methods=["POST"])
+def admin_ban_app(app_id):
+    """Admin endpoint to ban an OAuth app"""
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Token is missing"}), 401
+
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        
+        if not user or not user.is_admin:
+            return jsonify({"message": "Unauthorized - Admin access required"}), 403
+
+        app = OAuthApp.query.get(app_id)
+        if not app:
+            return jsonify({"message": "App not found"}), 404
+
+        app.banned = True
+        db.session.commit()
+        
+        return jsonify({"message": "App banned successfully"}), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid token"}), 401
+
+
+@app.route("/admin/apps/<app_id>/unban", methods=["POST"])
+def admin_unban_app(app_id):
+    """Admin endpoint to unban an OAuth app"""
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Token is missing"}), 401
+
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        
+        if not user or not user.is_admin:
+            return jsonify({"message": "Unauthorized - Admin access required"}), 403
+
+        app = OAuthApp.query.get(app_id)
+        if not app:
+            return jsonify({"message": "App not found"}), 404
+
+        app.banned = False
+        db.session.commit()
+        
+        return jsonify({"message": "App unbanned successfully"}), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid token"}), 401
+
+
+@app.route("/admin/apps/<app_id>", methods=["PUT"])
+def admin_edit_app(app_id):
+    """Admin endpoint to edit any OAuth app"""
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Token is missing"}), 401
+
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        
+        if not user or not user.is_admin:
+            return jsonify({"message": "Unauthorized - Admin access required"}), 403
+
+        app = OAuthApp.query.get(app_id)
+        if not app:
+            return jsonify({"message": "App not found"}), 404
+
+        update_data = request.get_json()
+        
+        if "name" in update_data:
+            app.name = update_data["name"]
+        if "redirect_uri" in update_data:
+            app.redirect_uri = update_data["redirect_uri"]
+        if "website" in update_data:
+            app.website = update_data["website"]
+        
+        db.session.commit()
+        
+        return jsonify({"message": "App updated successfully"}), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid token"}), 401
+
+
+@app.route("/account/is-admin", methods=["GET"])
+def check_is_admin():
+    """Check if the current user is an admin"""
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"is_admin": False}), 200
+
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        
+        return jsonify({"is_admin": user.is_admin if user else False}), 200
+    except:
+        return jsonify({"is_admin": False}), 200
+
+
 @app.route("/developer")
 def developer_dashboard():
     return send_from_directory("static", "developer.html")
@@ -1759,6 +1995,24 @@ def perform_migrations():
                     print("Migrating database: Adding email_verified column to user table...")
                     connection.execute(text("ALTER TABLE user ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT 0"))
                     print("Migration complete: user.email_verified added.")
+
+                # --- Migration 4: Add is_admin to user ---
+                user_cols = connection.execute(text("PRAGMA table_info(user)")).all()
+                if not any(col[1] == 'is_admin' for col in user_cols):
+                    print("Migrating database: Adding is_admin column to user table...")
+                    connection.execute(text("ALTER TABLE user ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"))
+                    # Make the first user an admin if exists
+                    first_user = connection.execute(text("SELECT id FROM user ORDER BY id LIMIT 1")).first()
+                    if first_user:
+                        connection.execute(text("UPDATE user SET is_admin = 1 WHERE id = :id"), {"id": first_user[0]})
+                    print("Migration complete: user.is_admin added.")
+
+                # --- Migration 5: Add banned to oauth_app ---
+                oauth_app_cols = connection.execute(text("PRAGMA table_info(oauth_app)")).all()
+                if not any(col[1] == 'banned' for col in oauth_app_cols):
+                    print("Migrating database: Adding banned column to oauth_app table...")
+                    connection.execute(text("ALTER TABLE oauth_app ADD COLUMN banned BOOLEAN NOT NULL DEFAULT 0"))
+                    print("Migration complete: oauth_app.banned added.")
 
         except Exception as e:
             print(f"Error during database migration: {str(e)}")

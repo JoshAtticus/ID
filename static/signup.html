@@ -421,6 +421,33 @@
                 padding: 16px;
             }
         }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        button:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
     </style>
 </head>
 <body>
@@ -781,6 +808,13 @@
         }
 
         document.getElementById('nextBtn').addEventListener('click', async () => {
+            const nextBtn = document.getElementById('nextBtn');
+            const originalText = nextBtn.textContent;
+            
+            // Add loading state
+            nextBtn.disabled = true;
+            nextBtn.innerHTML = originalText + '<span class="spinner"></span>';
+            
             if (await validateStep(currentStep)) {
                 currentStep++;
                 showStep(currentStep);
@@ -788,6 +822,10 @@
                     updateReview();
                 }
             }
+            
+            // Remove loading state
+            nextBtn.disabled = false;
+            nextBtn.textContent = originalText;
         });
 
         document.getElementById('prevBtn').addEventListener('click', () => {
@@ -819,6 +857,13 @@
 
         document.getElementById('signupForm').addEventListener('submit', async function(event) {
             event.preventDefault();
+            const submitBtn = document.getElementById('submit-button');
+            const originalText = submitBtn.textContent;
+            
+            // Add loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Creating Account<span class="spinner"></span>';
+            
             const full_name = document.getElementById('full_name').value;
             const dob = document.getElementById('dob').value;
             const email = document.getElementById('email').value;
@@ -843,12 +888,23 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    window.location.href = '/';
+                    // Store the token and redirect to dashboard
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                        window.location.href = '/dashboard';
+                    } else {
+                        // Fallback to login page if no token
+                        window.location.href = '/';
+                    }
                 } else {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalText;
                     showNotification('Error', data.message);
                 }
             } catch (error) {
                 console.error('Error:', error);
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
                 showNotification('Error', 'An error occurred during signup. Please try again.');
             }
         });
