@@ -312,29 +312,23 @@
     </div>
 
     <div class="container">
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value" id="totalApps">-</div>
-                <div class="stat-label">Total Apps</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="verifiedApps">-</div>
-                <div class="stat-label">Verified Apps</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="bannedApps">-</div>
-                <div class="stat-label">Banned Apps</div>
-            </div>
-        </div>
-
         <div class="apps-list">
-            <h2>All OAuth Applications</h2>
-            <div id="appsContainer">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p>Loading applications...</p>
-                </div>
+            <h2>Manage OAuth Application</h2>
+            <p style="color: var(--secondary-color); margin-bottom: 20px;">
+                Enter a Client ID to manage the application
+            </p>
+            
+            <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+                <input 
+                    type="text" 
+                    id="clientIdInput" 
+                    placeholder="Enter Client ID"
+                    style="flex: 1; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #5f6368; border-radius: 8px; color: var(--text-color); font-size: 14px;"
+                >
+                <button onclick="searchApp()" class="button">Search</button>
             </div>
+
+            <div id="appResult"></div>
         </div>
     </div>
 
@@ -364,7 +358,31 @@
             }
         }
 
-        async function loadApps() {
+        // Add Enter key support
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('clientIdInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    searchApp();
+                }
+            });
+        });
+
+        async function searchApp() {
+            const clientId = document.getElementById('clientIdInput').value.trim();
+            const resultDiv = document.getElementById('appResult');
+            
+            if (!clientId) {
+                resultDiv.innerHTML = '<p style="color: var(--danger-color);">Please enter a Client ID</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = `
+                <div class="loading" style="padding: 20px;">
+                    <div class="spinner"></div>
+                    <p>Searching...</p>
+                </div>
+            `;
+
             try {
                 const response = await fetch('/admin/apps', {
                     headers: {
@@ -377,33 +395,32 @@
                 }
 
                 const apps = await response.json();
-                displayApps(apps);
-                updateStats(apps);
+                const app = apps.find(a => a.client_id === clientId);
+
+                if (!app) {
+                    resultDiv.innerHTML = `
+                        <p style="color: var(--danger-color); text-align: center; padding: 40px;">
+                            No application found with Client ID: <code>${escapeHtml(clientId)}</code>
+                        </p>
+                    `;
+                    return;
+                }
+
+                displayApp(app);
             } catch (error) {
-                console.error('Error loading apps:', error);
-                document.getElementById('appsContainer').innerHTML = `
+                console.error('Error searching app:', error);
+                resultDiv.innerHTML = `
                     <p style="color: var(--danger-color); text-align: center;">
-                        Failed to load applications. Please try again.
+                        Failed to search application. Please try again.
                     </p>
                 `;
             }
         }
 
-        function updateStats(apps) {
-            document.getElementById('totalApps').textContent = apps.length;
-            document.getElementById('verifiedApps').textContent = apps.filter(app => app.verified).length;
-            document.getElementById('bannedApps').textContent = apps.filter(app => app.banned).length;
-        }
-
-        function displayApps(apps) {
-            const container = document.getElementById('appsContainer');
+        function displayApp(app) {
+            const resultDiv = document.getElementById('appResult');
             
-            if (apps.length === 0) {
-                container.innerHTML = '<p style="color: var(--secondary-color); text-align: center;">No applications found</p>';
-                return;
-            }
-
-            container.innerHTML = apps.map(app => `
+            resultDiv.innerHTML = `
                 <div class="app-item">
                     <div class="app-header">
                         <div class="app-title">
@@ -439,25 +456,25 @@
                     <div class="app-actions">
                         ${!app.verified ? `
                             <button class="action-button action-verify" onclick="verifyApp('${app.id}')">
-                                ✓ Verify
+                                ✓ Verify App
                             </button>
                         ` : `
                             <button class="action-button action-unverify" onclick="unverifyApp('${app.id}')">
-                                ✗ Unverify
+                                ✗ Remove Verification
                             </button>
                         `}
                         ${!app.banned ? `
                             <button class="action-button action-ban" onclick="banApp('${app.id}')">
-                                🚫 Ban
+                                🚫 Ban App
                             </button>
                         ` : `
                             <button class="action-button action-unban" onclick="unbanApp('${app.id}')">
-                                ✓ Unban
+                                ✓ Unban App
                             </button>
                         `}
                     </div>
                 </div>
-            `).join('');
+            `;
         }
 
         async function verifyApp(appId) {
@@ -472,7 +489,7 @@
                 });
 
                 if (response.ok) {
-                    await loadApps();
+                    searchApp(); // Refresh the current app
                 } else {
                     alert('Failed to verify app');
                 }
@@ -483,18 +500,22 @@
         }
 
         async function unverifyApp(appId) {
-            if (!confirm('Remove verification from this application?')) return;
+            const reason = prompt('Enter reason for removing verification:');
+            if (!reason) return;
             
             try {
                 const response = await fetch(`/admin/apps/${appId}/unverify`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': token
-                    }
+                        'Authorization': token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ reason })
                 });
 
                 if (response.ok) {
-                    await loadApps();
+                    alert('App unverified successfully');
+                    searchApp(); // Refresh the current app
                 } else {
                     alert('Failed to unverify app');
                 }
@@ -505,18 +526,23 @@
         }
 
         async function banApp(appId) {
-            if (!confirm('Ban this application? This will prevent it from being used.')) return;
+            const reason = prompt('Enter reason for banning (will revoke all user authorizations):');
+            if (!reason) return;
             
             try {
                 const response = await fetch(`/admin/apps/${appId}/ban`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': token
-                    }
+                        'Authorization': token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ reason })
                 });
 
                 if (response.ok) {
-                    await loadApps();
+                    const data = await response.json();
+                    alert(`App banned successfully. Revoked ${data.revoked_count} user authorization(s).`);
+                    searchApp(); // Refresh the current app
                 } else {
                     alert('Failed to ban app');
                 }
@@ -538,7 +564,7 @@
                 });
 
                 if (response.ok) {
-                    await loadApps();
+                    searchApp(); // Refresh the current app
                 } else {
                     alert('Failed to unban app');
                 }
@@ -549,9 +575,7 @@
         }
 
         // Initialize
-        checkAdminAccess().then(() => {
-            loadApps();
-        });
+        checkAdminAccess();
     </script>
 </body>
 </html>

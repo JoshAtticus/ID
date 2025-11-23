@@ -108,6 +108,16 @@ class EmailVerification(db.Model):
     verified = db.Column(db.Boolean, default=False)
 
 
+class PasswordReset(db.Model):
+    __tablename__ = "password_reset"
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(100), nullable=False)
+    code = db.Column(db.String(6), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    expires_at = db.Column(db.DateTime(timezone=True))
+    used = db.Column(db.Boolean, default=False)
+
+
 class Session(db.Model):
     id = db.Column(db.String(36), primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
@@ -296,7 +306,7 @@ This code will expire in 15 minutes.
 If you didn't request this verification, please ignore this email.
 
 Best regards,
-JoshAtticusID Team
+JoshAtticus
 """
 
         html_content = f"""
@@ -357,7 +367,7 @@ JoshAtticusID Team
         <p>This code will expire in 15 minutes.</p>
         <p>If you didn't request this verification, please ignore this email.</p>
         <div class="footer">
-            <p>Best regards,<br>JoshAtticusID Team</p>
+            <p>Best regards,<br>JoshAtticus</p>
         </div>
     </div>
 </body>
@@ -378,6 +388,652 @@ JoshAtticusID Team
     except Exception as e:
         print(f"Error sending email: {str(e)}")
         return False
+
+
+def send_email(to_email, subject, text_content, html_content):
+    """General email sending function"""
+    try:
+        if not all([app.config['SMTP_USERNAME'], app.config['SMTP_PASSWORD'], app.config['SMTP_FROM_EMAIL']]):
+            print("SMTP configuration is missing")
+            return False
+
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = f"{app.config['SMTP_FROM_NAME']} <{app.config['SMTP_FROM_EMAIL']}>"
+        msg['To'] = to_email
+
+        part1 = MIMEText(text_content, 'plain')
+        part2 = MIMEText(html_content, 'html')
+        msg.attach(part1)
+        msg.attach(part2)
+
+        with smtplib.SMTP(app.config['SMTP_SERVER'], app.config['SMTP_PORT']) as server:
+            server.starttls()
+            server.login(app.config['SMTP_USERNAME'], app.config['SMTP_PASSWORD'])
+            server.send_message(msg)
+        
+        return True
+    except Exception as e:
+        print(f"Error sending email: {str(e)}")
+        return False
+
+
+def send_new_signin_email(user, device_info, location="Unknown"):
+    """Send email notification for new sign-in"""
+    text_content = f"""
+Hello {user.full_name},
+
+We detected a new sign-in to your JoshAtticusID account.
+
+Device: {device_info}
+Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
+Location: {location}
+
+If this was you, you can safely ignore this email.
+
+If you don't recognize this sign-in, please secure your account immediately by changing your password.
+
+Best regards,
+JoshAtticusID Security Team
+"""
+
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }}
+        h1 {{
+            color: #8ab4f8;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }}
+        .info-box {{
+            background: rgba(138, 180, 248, 0.1);
+            border-left: 4px solid #8ab4f8;
+            border-radius: 4px;
+            padding: 16px;
+            margin: 20px 0;
+        }}
+        .warning {{
+            background: rgba(242, 139, 130, 0.1);
+            border-left: 4px solid #f28b82;
+            padding: 16px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }}
+        p {{
+            line-height: 1.6;
+            color: #e8eaed;
+        }}
+        .footer {{
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 New Sign-In Detected</h1>
+        <p>Hello {user.full_name},</p>
+        <p>We detected a new sign-in to your JoshAtticusID account.</p>
+        <div class="info-box">
+            <p><strong>Device:</strong> {device_info}</p>
+            <p><strong>Time:</strong> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+            <p><strong>Location:</strong> {location}</p>
+        </div>
+        <p>If this was you, you can safely ignore this email.</p>
+        <div class="warning">
+            <p><strong>⚠️ Didn't recognize this sign-in?</strong></p>
+            <p>Please secure your account immediately by changing your password.</p>
+        </div>
+        <div class="footer">
+            <p>Best regards,<br>JoshAtticusID Security Team</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    
+    send_email(user.email, "New Sign-In to Your JoshAtticusID Account", text_content, html_content)
+
+
+def send_oauth_authorization_email(user, app_name):
+    """Send email notification for new OAuth app authorization"""
+    text_content = f"""
+Hello {user.full_name},
+
+You have authorized a new application to access your JoshAtticusID account.
+
+Application: {app_name}
+Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+You can manage your authorized applications anytime from your dashboard.
+
+If you didn't authorize this application, please revoke its access immediately.
+
+Best regards,
+JoshAtticusID Security Team
+"""
+
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }}
+        h1 {{
+            color: #8ab4f8;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }}
+        .info-box {{
+            background: rgba(138, 180, 248, 0.1);
+            border-left: 4px solid #8ab4f8;
+            border-radius: 4px;
+            padding: 16px;
+            margin: 20px 0;
+        }}
+        p {{
+            line-height: 1.6;
+            color: #e8eaed;
+        }}
+        .footer {{
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 New App Authorized</h1>
+        <p>Hello {user.full_name},</p>
+        <p>You have authorized a new application to access your JoshAtticusID account.</p>
+        <div class="info-box">
+            <p><strong>Application:</strong> {app_name}</p>
+            <p><strong>Time:</strong> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+        </div>
+        <p>You can manage your authorized applications anytime from your dashboard.</p>
+        <p>If you didn't authorize this application, please revoke its access immediately.</p>
+        <div class="footer">
+            <p>Best regards,<br>JoshAtticusID Security Team</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    
+    send_email(user.email, f"New App Authorized: {app_name}", text_content, html_content)
+
+
+def send_app_banned_email(owner_email, app_name, reason):
+    """Send email to app owner when their app is banned"""
+    text_content = f"""
+Hello,
+
+Your OAuth application "{app_name}" has been banned.
+
+Reason: {reason}
+
+All user authorizations for this application have been revoked and the app can no longer be used.
+
+If you believe this was done in error, please reply to this email.
+
+Best regards,
+JoshAtticus
+"""
+
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }}
+        h1 {{
+            color: #f28b82;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }}
+        .warning {{
+            background: rgba(242, 139, 130, 0.1);
+            border-left: 4px solid #f28b82;
+            padding: 16px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }}
+        p {{
+            line-height: 1.6;
+            color: #e8eaed;
+        }}
+        .footer {{
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚫 Application Banned</h1>
+        <p>Hello,</p>
+        <p>Your OAuth application <strong>"{app_name}"</strong> has been banned.</p>
+        <div class="warning">
+            <p><strong>Reason:</strong></p>
+            <p>{reason}</p>
+        </div>
+        <p>All user authorizations for this application have been revoked and the app can no longer be used.</p>
+        <p>If you believe this was done in error, please reply to this email.</p>
+        <div class="footer">
+            <p>Best regards,<br>JoshAtticus</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    
+    send_email(owner_email, f"Your App '{app_name}' Has Been Banned", text_content, html_content)
+
+
+def send_app_verified_email(owner_email, app_name):
+    """Send email to app owner when their app is verified"""
+    text_content = f"""
+Hello,
+
+Congratulations! Your OAuth application "{app_name}" has been verified!
+
+Your app will now display a verified badge when users sign in.
+
+Best regards,
+JoshAtticus
+"""
+
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }}
+        h1 {{
+            color: #81c995;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }}
+        .success {{
+            background: rgba(129, 201, 149, 0.1);
+            border-left: 4px solid #81c995;
+            padding: 16px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }}
+        p {{
+            line-height: 1.6;
+            color: #e8eaed;
+        }}
+        .footer {{
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✓ Application Verified</h1>
+        <p>Hello,</p>
+        <p>Congratulations! Your OAuth application <strong>"{app_name}"</strong> has been verified!</p>
+        <div class="success">
+            <p>✓ Your app is now verified and will display a verified badge when users sign in.</p>
+        </div>
+        <div class="footer">
+            <p>Best regards,<br>JoshAtticus</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    
+    send_email(owner_email, f"Your App '{app_name}' Is Now Verified!", text_content, html_content)
+
+
+def send_app_unverified_email(owner_email, app_name, reason):
+    """Send email to app owner when their app verification is removed"""
+    text_content = f"""
+Hello,
+
+Your OAuth application "{app_name}" verification has been removed.
+
+Reason: {reason}
+
+Your app will no longer display a verified badge.
+
+If you believe this was done in error, please reply to this email.
+
+Best regards,
+JoshAtticus
+"""
+
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }}
+        h1 {{
+            color: #fdd663;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }}
+        .warning {{
+            background: rgba(253, 214, 99, 0.1);
+            border-left: 4px solid #fdd663;
+            padding: 16px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }}
+        p {{
+            line-height: 1.6;
+            color: #e8eaed;
+        }}
+        .footer {{
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚠️ Verification Removed</h1>
+        <p>Hello,</p>
+        <p>Your OAuth application <strong>"{app_name}"</strong> is no longer verified.</p>
+        <div class="warning">
+            <p><strong>Reason:</strong></p>
+            <p>{reason}</p>
+        </div>
+        <p>Your app will no longer display a verified badge.</p>
+        <p>If you believe this was done in error, please reply to this email.</p>
+        <div class="footer">
+            <p>Best regards,<br>JoshAtticus</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    
+    send_email(owner_email, f"Verification Removed: {app_name}", text_content, html_content)
+
+
+def send_welcome_email(user):
+    """Send welcome email to new users"""
+    text_content = f"""
+Hello {user.full_name},
+
+Welcome to JoshAtticusID!
+
+Your account has been successfully created and verified. You can now use your JoshAtticusID account to sign in to apps and services that support it.
+
+Here's what you can do:
+- Manage your profile and security settings from your dashboard
+- Authorize apps to access your information securely
+- Monitor your account activity and active sessions
+
+If you have any questions, feel free to reply to this email.
+
+Best regards,
+JoshAtticus
+"""
+
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }}
+        h1 {{
+            color: #8ab4f8;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }}
+        .welcome-box {{
+            background: rgba(138, 180, 248, 0.1);
+            border-left: 4px solid #8ab4f8;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 24px 0;
+        }}
+        .features {{
+            margin: 24px 0;
+        }}
+        .feature-item {{
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }}
+        .feature-item:last-child {{
+            border-bottom: none;
+        }}
+        p {{
+            line-height: 1.6;
+            color: #e8eaed;
+        }}
+        .footer {{
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 Welcome to JoshAtticusID!</h1>
+        <p>Hello {user.full_name},</p>
+        <div class="welcome-box">
+            <p><strong>Your account has been successfully created and verified!</strong></p>
+            <p>You can now use your JoshAtticusID account to sign in to apps and services.</p>
+        </div>
+        <div class="features">
+            <p><strong>Here's what you can do:</strong></p>
+            <div class="feature-item">✓ Manage your profile and security settings from your dashboard</div>
+            <div class="feature-item">✓ Authorize apps to access your information securely</div>
+            <div class="feature-item">✓ Monitor your account activity and active sessions</div>
+        </div>
+        <p>If you have any questions, feel free to reply to this email.</p>
+        <div class="footer">
+            <p>Best regards,<br>JoshAtticus</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    
+    send_email(user.email, "Welcome to JoshAtticusID! 🎉", text_content, html_content)
+
+
+def send_password_reset_email(email, code):
+    """Send password reset email with verification code"""
+    text_content = f"""
+Hello,
+
+You requested to reset your password for your JoshAtticusID account.
+
+Your password reset code is: {code}
+
+This code will expire in 15 minutes.
+
+If you didn't request this password reset, please ignore this email and ensure your account is secure.
+
+Best regards,
+JoshAtticusID Security Team
+"""
+
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }}
+        h1 {{
+            color: #8ab4f8;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }}
+        .code {{
+            background: rgba(138, 180, 248, 0.1);
+            border: 2px solid #8ab4f8;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 8px;
+            color: #8ab4f8;
+            margin: 24px 0;
+        }}
+        .warning {{
+            background: rgba(242, 139, 130, 0.1);
+            border-left: 4px solid #f28b82;
+            padding: 16px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }}
+        p {{
+            line-height: 1.6;
+            color: #e8eaed;
+        }}
+        .footer {{
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 Password Reset Request</h1>
+        <p>You requested to reset your password for your JoshAtticusID account.</p>
+        <p>Your password reset code is:</p>
+        <div class="code">{code}</div>
+        <p>This code will expire in 15 minutes.</p>
+        <div class="warning">
+            <p><strong>⚠️ Didn't request this?</strong></p>
+            <p>If you didn't request this password reset, please ignore this email and ensure your account is secure.</p>
+        </div>
+        <div class="footer">
+            <p>Best regards,<br>JoshAtticusID Security Team</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    
+    send_email(email, "Password Reset Code - JoshAtticusID", text_content, html_content)
+
 
 def generate_verification_code():
     return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
@@ -474,6 +1130,9 @@ def create_account():
         
         db.session.add(new_user)
         db.session.commit()
+        
+        # Send welcome email
+        send_welcome_email(new_user)
         
         # Auto-login: Generate JWT token for the new user
         token = jwt.encode(
@@ -602,6 +1261,129 @@ def login():
         return jsonify({"token": token})
 
     return jsonify({"message": "Invalid credentials"}), 401
+
+
+@app.route("/account/password-reset/request", methods=["POST"])
+def request_password_reset():
+    """Request a password reset code"""
+    data = request.get_json()
+    email = data.get("email")
+
+    if not email or "@" not in email or len(email) > 100:
+        return jsonify({"message": "Invalid email format"}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        # Don't reveal if user exists or not for security
+        return jsonify({"message": "If an account exists with this email, a reset code has been sent"}), 200
+
+    # Generate reset code
+    code = generate_verification_code()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    # Check for existing unused reset request
+    existing = PasswordReset.query.filter_by(email=email, used=False).first()
+    if existing:
+        existing.code = code
+        existing.expires_at = expires_at
+        existing.created_at = datetime.now(timezone.utc)
+    else:
+        reset_request = PasswordReset(
+            email=email,
+            code=code,
+            expires_at=expires_at
+        )
+        db.session.add(reset_request)
+
+    try:
+        db.session.commit()
+        
+        if send_password_reset_email(email, code):
+            return jsonify({"message": "If an account exists with this email, a reset code has been sent"}), 200
+        else:
+            return jsonify({"message": "Error sending reset email"}), 500
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in password reset request: {str(e)}")
+        return jsonify({"message": "Error processing request"}), 500
+
+
+@app.route("/account/password-reset/verify", methods=["POST"])
+def verify_password_reset():
+    """Verify the password reset code"""
+    data = request.get_json()
+    email = data.get("email")
+    code = data.get("code")
+
+    if not email or not code:
+        return jsonify({"valid": False, "message": "Missing email or code"}), 400
+
+    if len(code) != 6:
+        return jsonify({"valid": False, "message": "Code must be 6 digits"}), 400
+
+    reset_request = PasswordReset.query.filter_by(
+        email=email,
+        code=code,
+        used=False
+    ).first()
+
+    if not reset_request:
+        return jsonify({"valid": False, "message": "Invalid reset code"}), 400
+
+    if datetime.now(timezone.utc) > reset_request.expires_at.replace(tzinfo=timezone.utc):
+        return jsonify({"valid": False, "message": "Reset code has expired"}), 400
+
+    return jsonify({"valid": True, "message": "Code is valid"}), 200
+
+
+@app.route("/account/password-reset/complete", methods=["POST"])
+def complete_password_reset():
+    """Complete the password reset with new password"""
+    data = request.get_json()
+    email = data.get("email")
+    code = data.get("code")
+    new_password = data.get("new_password")
+
+    if not all([email, code, new_password]):
+        return jsonify({"message": "Missing required fields"}), 400
+
+    # Validate password strength
+    valid, msg = validate_password_strength(new_password)
+    if not valid:
+        return jsonify({"message": msg}), 400
+
+    # Find the reset request
+    reset_request = PasswordReset.query.filter_by(
+        email=email,
+        code=code,
+        used=False
+    ).first()
+
+    if not reset_request:
+        return jsonify({"message": "Invalid reset code"}), 400
+
+    if datetime.now(timezone.utc) > reset_request.expires_at.replace(tzinfo=timezone.utc):
+        return jsonify({"message": "Reset code has expired"}), 400
+
+    # Find user and update password
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    try:
+        user.set_password(new_password)
+        reset_request.used = True
+        
+        # End all existing sessions for security
+        Session.query.filter_by(user_id=user.id).delete()
+        
+        db.session.commit()
+        
+        return jsonify({"message": "Password reset successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error completing password reset: {str(e)}")
+        return jsonify({"message": "Error resetting password"}), 500
 
 
 @app.route("/account/exists", methods=["POST"])
@@ -891,7 +1673,7 @@ def oauth_authorize():
         if oauth_app.banned:
             return jsonify({
                 "error": "access_denied",
-                "error_description": "This application has been banned by administrators"
+                "error_description": "This app has been banned and cannot be used. If you are a user, do not continue using this app. If you are the app developer, please send an email to id@joshattic.us to appeal this ban."
             }), 403
         
         try:
@@ -1064,6 +1846,9 @@ def oauth_approve():
                 access_token=secrets.token_urlsafe(48)
             )
             db.session.add(auth)
+            
+            # Send email notification for new authorization (not for re-login)
+            send_oauth_authorization_email(user, oauth_app.name)
 
         db.session.commit()
 
@@ -1297,12 +2082,12 @@ def revoke_app():
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
         user = User.query.get(data["user_id"])
-        client_id = request.json.get("app_id")
+        app_id = request.json.get("app_id")
 
         if not user:
             return jsonify({"message": "User not found"}), 404
 
-        oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
+        oauth_app = OAuthApp.query.get(app_id)
         if not oauth_app:
             return jsonify({"message": "Application not found"}), 404
 
@@ -1748,17 +2533,17 @@ def admin_list_all_apps():
 
         apps = OAuthApp.query.all()
         apps_list = []
-        for app in apps:
-            owner = User.query.get(app.user_id)
+        for oauth_app in apps:
+            owner = User.query.get(oauth_app.user_id)
             apps_list.append({
-                "id": app.id,
-                "name": app.name,
-                "client_id": app.client_id,
-                "redirect_uri": app.redirect_uri,
-                "website": app.website,
-                "verified": app.verified,
-                "banned": app.banned,
-                "created_at": app.created_at.isoformat(),
+                "id": oauth_app.id,
+                "name": oauth_app.name,
+                "client_id": oauth_app.client_id,
+                "redirect_uri": oauth_app.redirect_uri,
+                "website": oauth_app.website,
+                "verified": oauth_app.verified,
+                "banned": oauth_app.banned,
+                "created_at": oauth_app.created_at.isoformat(),
                 "owner_email": owner.email if owner else "Unknown",
                 "owner_name": owner.full_name if owner else "Unknown"
             })
@@ -1784,12 +2569,17 @@ def admin_verify_app(app_id):
         if not user or not user.is_admin:
             return jsonify({"message": "Unauthorized - Admin access required"}), 403
 
-        app = OAuthApp.query.get(app_id)
-        if not app:
+        oauth_app = OAuthApp.query.get(app_id)
+        if not oauth_app:
             return jsonify({"message": "App not found"}), 404
 
-        app.verified = True
+        oauth_app.verified = True
         db.session.commit()
+        
+        # Send email notification to app owner
+        owner = User.query.get(oauth_app.user_id)
+        if owner:
+            send_app_verified_email(owner.email, oauth_app.name)
         
         return jsonify({"message": "App verified successfully"}), 200
     except jwt.ExpiredSignatureError:
@@ -1812,12 +2602,21 @@ def admin_unverify_app(app_id):
         if not user or not user.is_admin:
             return jsonify({"message": "Unauthorized - Admin access required"}), 403
 
-        app = OAuthApp.query.get(app_id)
-        if not app:
+        oauth_app = OAuthApp.query.get(app_id)
+        if not oauth_app:
             return jsonify({"message": "App not found"}), 404
 
-        app.verified = False
+        # Get reason from request body
+        request_data = request.get_json() or {}
+        reason = request_data.get("reason", "No reason provided")
+
+        oauth_app.verified = False
         db.session.commit()
+        
+        # Send email notification to app owner
+        owner = User.query.get(oauth_app.user_id)
+        if owner:
+            send_app_unverified_email(owner.email, oauth_app.name, reason)
         
         return jsonify({"message": "App unverified successfully"}), 200
     except jwt.ExpiredSignatureError:
@@ -1840,14 +2639,29 @@ def admin_ban_app(app_id):
         if not user or not user.is_admin:
             return jsonify({"message": "Unauthorized - Admin access required"}), 403
 
-        app = OAuthApp.query.get(app_id)
-        if not app:
+        oauth_app = OAuthApp.query.get(app_id)
+        if not oauth_app:
             return jsonify({"message": "App not found"}), 404
 
-        app.banned = True
+        # Get reason from request body
+        request_data = request.get_json() or {}
+        reason = request_data.get("reason", "No reason provided")
+
+        oauth_app.banned = True
+        
+        # Revoke all authorizations for this app
+        authorizations = OAuthAuthorization.query.filter_by(app_id=app_id).all()
+        for auth in authorizations:
+            db.session.delete(auth)
+        
         db.session.commit()
         
-        return jsonify({"message": "App banned successfully"}), 200
+        # Send email notification to app owner
+        owner = User.query.get(oauth_app.user_id)
+        if owner:
+            send_app_banned_email(owner.email, oauth_app.name, reason)
+        
+        return jsonify({"message": "App banned successfully", "revoked_count": len(authorizations)}), 200
     except jwt.ExpiredSignatureError:
         return jsonify({"message": "Token has expired"}), 401
     except jwt.InvalidTokenError:
@@ -1868,11 +2682,14 @@ def admin_unban_app(app_id):
         if not user or not user.is_admin:
             return jsonify({"message": "Unauthorized - Admin access required"}), 403
 
-        app = OAuthApp.query.get(app_id)
-        if not app:
+        oauth_app = OAuthApp.query.get(app_id)
+        if not oauth_app:
             return jsonify({"message": "App not found"}), 404
 
-        app.banned = False
+        oauth_app.banned = False
+        db.session.commit()
+        
+        return jsonify({"message": "App unbanned successfully"}), 200
         db.session.commit()
         
         return jsonify({"message": "App unbanned successfully"}), 200
@@ -1896,18 +2713,18 @@ def admin_edit_app(app_id):
         if not user or not user.is_admin:
             return jsonify({"message": "Unauthorized - Admin access required"}), 403
 
-        app = OAuthApp.query.get(app_id)
-        if not app:
+        oauth_app = OAuthApp.query.get(app_id)
+        if not oauth_app:
             return jsonify({"message": "App not found"}), 404
 
         update_data = request.get_json()
         
         if "name" in update_data:
-            app.name = update_data["name"]
+            oauth_app.name = update_data["name"]
         if "redirect_uri" in update_data:
-            app.redirect_uri = update_data["redirect_uri"]
+            oauth_app.redirect_uri = update_data["redirect_uri"]
         if "website" in update_data:
-            app.website = update_data["website"]
+            oauth_app.website = update_data["website"]
         
         db.session.commit()
         

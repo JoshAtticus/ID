@@ -747,7 +747,6 @@
     <div class="header">
         <h1>Dashboard</h1>
         <div style="display: flex; gap: 12px;">
-            <button class="logout-button" id="adminPanelButton" style="display: none; background: #fdd663; color: #202124;" onclick="window.location.href='/admin'">Admin</button>
             <button class="logout-button" id="logoutButton">Logout</button>
         </div>
     </div>
@@ -867,7 +866,7 @@
     </div>
 
     <footer class="footer">
-        &copy; 2025 JoshAtticus | <a href="/privacy" style="color: var(--secondary-color);">Privacy Policy</a> | <a href="/terms" style="color: var(--secondary-color);">Terms of Service</a> | <a href="/developer" style="color: var(--secondary-color);">Developer Dashboard</a>
+        &copy; 2025 JoshAtticus | <a href="/privacy" style="color: var(--secondary-color);">Privacy Policy</a> | <a href="/terms" style="color: var(--secondary-color);">Terms of Service</a> | <a href="/developer" style="color: var(--secondary-color);">Developer Dashboard</a> <a href="/admin" id="adminPanelLink" style="color: var(--secondary-color); display: none;">Admin Panel</a></p>
     </footer>
 
     <script>
@@ -1271,7 +1270,7 @@
                 
                 const data = await response.json();
                 if (data.is_admin) {
-                    document.getElementById('adminPanelButton').style.display = 'block';
+                    document.getElementById('adminPanelLink').style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error checking admin status:', error);
