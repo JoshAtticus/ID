@@ -262,6 +262,63 @@
             to { transform: rotate(360deg); }
         }
 
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #5f6368;
+        }
+
+        .pagination-button {
+            padding: 8px 16px;
+            background: rgba(138, 180, 248, 0.1);
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .pagination-button:hover:not(:disabled) {
+            background: rgba(138, 180, 248, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .pagination-button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            color: var(--secondary-color);
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--secondary-color);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .tab-button.active {
+            color: var(--primary-color) !important;
+            border-bottom-color: var(--primary-color) !important;
+        }
+
+        .tab-button:hover {
+            color: var(--primary-color) !important;
+        }
+
         @media (max-width: 768px) {
             .header {
                 flex-direction: column;
@@ -313,22 +370,54 @@
 
     <div class="container">
         <div class="apps-list">
-            <h2>Manage OAuth Application</h2>
-            <p style="color: var(--secondary-color); margin-bottom: 20px;">
-                Enter a Client ID to manage the application
-            </p>
+            <h2>Manage OAuth Applications</h2>
             
-            <div style="display: flex; gap: 12px; margin-bottom: 24px;">
-                <input 
-                    type="text" 
-                    id="clientIdInput" 
-                    placeholder="Enter Client ID"
-                    style="flex: 1; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #5f6368; border-radius: 8px; color: var(--text-color); font-size: 14px;"
+            <!-- Tabs -->
+            <div style="display: flex; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid #5f6368;">
+                <button 
+                    id="listTab" 
+                    class="tab-button active" 
+                    onclick="switchTab('list')"
+                    style="padding: 12px 24px; background: none; border: none; color: var(--text-color); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.3s;"
                 >
-                <button onclick="searchApp()" class="button">Search</button>
+                    All Apps
+                </button>
+                <button 
+                    id="searchTab" 
+                    class="tab-button" 
+                    onclick="switchTab('search')"
+                    style="padding: 12px 24px; background: none; border: none; color: var(--secondary-color); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.3s;"
+                >
+                    Search by Client ID
+                </button>
             </div>
+            
+            <!-- List View -->
+            <div id="listView">
+                <p style="color: var(--secondary-color); margin-bottom: 20px;">
+                    Browse all OAuth applications in the system
+                </p>
+                <div id="appsContainer"></div>
+            </div>
+            
+            <!-- Search View -->
+            <div id="searchView" style="display: none;">
+                <p style="color: var(--secondary-color); margin-bottom: 20px;">
+                    Enter a Client ID to manage a specific application
+                </p>
+                
+                <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+                    <input 
+                        type="text" 
+                        id="clientIdInput" 
+                        placeholder="Enter Client ID"
+                        style="flex: 1; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #5f6368; border-radius: 8px; color: var(--text-color); font-size: 14px;"
+                    >
+                    <button onclick="searchApp()" class="button">Search</button>
+                </div>
 
-            <div id="appResult"></div>
+                <div id="searchResult"></div>
+            </div>
         </div>
     </div>
 
@@ -442,18 +531,32 @@
             }
         }
 
-        // Add Enter key support
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('clientIdInput').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    searchApp();
-                }
-            });
-        });
+        let currentPage = 1;
+        const perPage = 10;
+
+        function switchTab(tab) {
+            const listTab = document.getElementById('listTab');
+            const searchTab = document.getElementById('searchTab');
+            const listView = document.getElementById('listView');
+            const searchView = document.getElementById('searchView');
+
+            if (tab === 'list') {
+                listTab.classList.add('active');
+                searchTab.classList.remove('active');
+                listView.style.display = 'block';
+                searchView.style.display = 'none';
+                loadApps(currentPage);
+            } else {
+                listTab.classList.remove('active');
+                searchTab.classList.add('active');
+                listView.style.display = 'none';
+                searchView.style.display = 'block';
+            }
+        }
 
         async function searchApp() {
             const clientId = document.getElementById('clientIdInput').value.trim();
-            const resultDiv = document.getElementById('appResult');
+            const resultDiv = document.getElementById('searchResult');
             
             if (!clientId) {
                 resultDiv.innerHTML = '<p style="color: var(--danger-color);">Please enter a Client ID</p>';
@@ -468,7 +571,7 @@
             `;
 
             try {
-                const response = await fetch('/admin/apps', {
+                const response = await fetch('/admin/apps?per_page=1000', {
                     headers: {
                         'Authorization': token
                     }
@@ -478,8 +581,8 @@
                     throw new Error('Failed to load apps');
                 }
 
-                const apps = await response.json();
-                const app = apps.find(a => a.client_id === clientId);
+                const data = await response.json();
+                const app = data.apps.find(a => a.client_id === clientId);
 
                 if (!app) {
                     resultDiv.innerHTML = `
@@ -490,7 +593,7 @@
                     return;
                 }
 
-                displayApp(app);
+                resultDiv.innerHTML = displayAppCard(app);
             } catch (error) {
                 console.error('Error searching app:', error);
                 resultDiv.innerHTML = `
@@ -501,8 +604,146 @@
             }
         }
 
+        async function loadApps(page = 1) {
+            const container = document.getElementById('appsContainer');
+            
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading applications...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/admin/apps?page=${page}&per_page=${perPage}`, {
+                    headers: {
+                        'Authorization': token
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load apps');
+                }
+
+                const data = await response.json();
+                currentPage = data.page;
+                
+                if (data.apps.length === 0 && page === 1) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📱</div>
+                            <p>No OAuth applications found</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                displayApps(data.apps, data);
+            } catch (error) {
+                console.error('Error loading apps:', error);
+                container.innerHTML = `
+                    <p style="color: var(--danger-color); text-align: center;">
+                        Failed to load applications. Please try again.
+                    </p>
+                `;
+            }
+        }
+
+        function displayApps(apps, paginationData) {
+            const container = document.getElementById('appsContainer');
+            let html = '';
+
+            apps.forEach(app => {
+                html += displayAppCard(app);
+            });
+
+            // Add pagination controls
+            html += `
+                <div class="pagination">
+                    <button 
+                        class="pagination-button" 
+                        onclick="loadApps(${paginationData.page - 1})" 
+                        ${!paginationData.has_prev ? 'disabled' : ''}
+                    >
+                        ← Previous
+                    </button>
+                    <span class="pagination-info">
+                        Page ${paginationData.page} of ${paginationData.pages} 
+                        (${paginationData.total} total)
+                    </span>
+                    <button 
+                        class="pagination-button" 
+                        onclick="loadApps(${paginationData.page + 1})" 
+                        ${!paginationData.has_next ? 'disabled' : ''}
+                    >
+                        Next →
+                    </button>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function displayAppCard(app) {
+            return `
+                <div class="app-item">
+                    <div class="app-header">
+                        <div class="app-title">
+                            <h3>${escapeHtml(app.name)}</h3>
+                            ${app.verified ? '<span class="badge badge-verified">✓ Verified</span>' : '<span class="badge badge-unverified">Unverified</span>'}
+                            ${app.banned ? '<span class="badge badge-banned">🚫 Banned</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="app-info">
+                        <div class="info-item">
+                            <div class="info-label">Client ID</div>
+                            <div class="info-value"><code>${escapeHtml(app.client_id)}</code></div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Owner</div>
+                            <div class="info-value">${escapeHtml(app.owner_name)} (${escapeHtml(app.owner_email)})</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Redirect URI</div>
+                            <div class="info-value">${escapeHtml(app.redirect_uri)}</div>
+                        </div>
+                        ${app.website ? `
+                            <div class="info-item">
+                                <div class="info-label">Website</div>
+                                <div class="info-value">${escapeHtml(app.website)}</div>
+                            </div>
+                        ` : ''}
+                        <div class="info-item">
+                            <div class="info-label">Created</div>
+                            <div class="info-value">${new Date(app.created_at).toLocaleDateString()}</div>
+                        </div>
+                    </div>
+                    <div class="app-actions">
+                        ${!app.verified ? `
+                            <button class="action-button action-verify" onclick="verifyApp('${app.id}')">
+                                ✓ Verify App
+                            </button>
+                        ` : `
+                            <button class="action-button action-unverify" onclick="unverifyApp('${app.id}')">
+                                ✗ Remove Verification
+                            </button>
+                        `}
+                        ${!app.banned ? `
+                            <button class="action-button action-ban" onclick="banApp('${app.id}')">
+                                🚫 Ban App
+                            </button>
+                        ` : `
+                            <button class="action-button action-unban" onclick="unbanApp('${app.id}')">
+                                ✓ Unban App
+                            </button>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
         function displayApp(app) {
-            const resultDiv = document.getElementById('appResult');
+            const resultDiv = document.getElementById('appsContainer');
             
             resultDiv.innerHTML = `
                 <div class="app-item">
@@ -585,7 +826,13 @@
 
                                 if (response.ok) {
                                     showModal('Success', '<p>Application verified successfully.</p>', [
-                                        { text: 'OK', class: '', action: () => searchApp() }
+                                        { text: 'OK', class: '', action: () => {
+                                            if (document.getElementById('listView').style.display !== 'none') {
+                                                loadApps(currentPage);
+                                            } else {
+                                                searchApp();
+                                            }
+                                        }}
                                     ]);
                                 } else {
                                     showModal('Error', '<p>Failed to verify app. Please try again.</p>', [
@@ -618,7 +865,13 @@
 
                     if (response.ok) {
                         showModal('Success', '<p>App verification removed successfully.</p>', [
-                            { text: 'OK', class: '', action: () => searchApp() }
+                            { text: 'OK', class: '', action: () => {
+                                if (document.getElementById('listView').style.display !== 'none') {
+                                    loadApps(currentPage);
+                                } else {
+                                    searchApp();
+                                }
+                            }}
                         ]);
                     } else {
                         showModal('Error', '<p>Failed to remove verification. Please try again.</p>', [
@@ -649,7 +902,13 @@
                     if (response.ok) {
                         const data = await response.json();
                         showModal('Success', `<p>App banned successfully.</p><p>Revoked ${data.revoked_count} user authorization(s).</p>`, [
-                            { text: 'OK', class: '', action: () => searchApp() }
+                            { text: 'OK', class: '', action: () => {
+                                if (document.getElementById('listView').style.display !== 'none') {
+                                    loadApps(currentPage);
+                                } else {
+                                    searchApp();
+                                }
+                            }}
                         ]);
                     } else {
                         showModal('Error', '<p>Failed to ban app. Please try again.</p>', [
@@ -689,7 +948,13 @@
 
                                 if (response.ok) {
                                     showModal('Success', '<p>Application unbanned successfully.</p>', [
-                                        { text: 'OK', class: '', action: () => searchApp() }
+                                        { text: 'OK', class: '', action: () => {
+                                            if (document.getElementById('listView').style.display !== 'none') {
+                                                loadApps(currentPage);
+                                            } else {
+                                                searchApp();
+                                            }
+                                        }}
                                     ]);
                                 } else {
                                     showModal('Error', '<p>Failed to unban app. Please try again.</p>', [
@@ -708,8 +973,21 @@
             );
         }
 
+        // Add Enter key support for search
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('clientIdInput');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        searchApp();
+                    }
+                });
+            }
+        });
+
         // Initialize
         checkAdminAccess();
+        loadApps();
     </script>
 </body>
 </html>

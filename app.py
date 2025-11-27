@@ -2549,7 +2549,7 @@ def admin_panel():
 
 @app.route("/admin/apps", methods=["GET"])
 def admin_list_all_apps():
-    """Admin endpoint to list all OAuth apps"""
+    """Admin endpoint to list all OAuth apps with pagination"""
     token = request.headers.get("Authorization")
     if not token:
         return jsonify({"message": "Token is missing"}), 401
@@ -2561,9 +2561,20 @@ def admin_list_all_apps():
         if not user or not user.is_admin:
             return jsonify({"message": "Unauthorized - Admin access required"}), 403
 
-        apps = OAuthApp.query.all()
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        # Limit per_page to reasonable values
+        per_page = min(per_page, 100)
+        
+        # Query with pagination
+        pagination = OAuthApp.query.order_by(OAuthApp.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
         apps_list = []
-        for oauth_app in apps:
+        for oauth_app in pagination.items:
             owner = User.query.get(oauth_app.user_id)
             apps_list.append({
                 "id": oauth_app.id,
@@ -2578,7 +2589,15 @@ def admin_list_all_apps():
                 "owner_name": owner.full_name if owner else "Unknown"
             })
         
-        return jsonify(apps_list), 200
+        return jsonify({
+            "apps": apps_list,
+            "total": pagination.total,
+            "page": pagination.page,
+            "per_page": pagination.per_page,
+            "pages": pagination.pages,
+            "has_next": pagination.has_next,
+            "has_prev": pagination.has_prev
+        }), 200
     except jwt.ExpiredSignatureError:
         return jsonify({"message": "Token has expired"}), 401
     except jwt.InvalidTokenError:
