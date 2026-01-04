@@ -311,8 +311,7 @@ This code will expire in 15 minutes.
 
 If you didn't request this verification, please ignore this email.
 
-Best regards,
-JoshAtticus
+You are recieving this email because you signed up for a JoshAtticusID account. If this was not you, please ignore this email and nothing will happen.
 """
 
         html_content = f"""
@@ -373,7 +372,7 @@ JoshAtticus
         <p>This code will expire in 15 minutes.</p>
         <p>If you didn't request this verification, please ignore this email.</p>
         <div class="footer">
-            <p>Best regards,<br>JoshAtticus</p>
+            <small>You are recieving this email because you signed up for a JoshAtticusID account. If this was not you, please ignore this email and nothing will happen.</small>
         </div>
     </div>
 </body>
@@ -439,8 +438,7 @@ If this was you, you can safely ignore this email.
 
 If you don't recognize this sign-in, please secure your account immediately by changing your password.
 
-Best regards,
-JoshAtticusID Security Team
+You are recieving this email because someone signed into your JoshAtticusID from a device or location we don't recognize.
 """
 
     html_content = f"""
@@ -510,7 +508,7 @@ JoshAtticusID Security Team
             <p>Please secure your account immediately by changing your password.</p>
         </div>
         <div class="footer">
-            <p>Best regards,<br>JoshAtticusID Security Team</p>
+            <small>You are recieving this email because someone signed into your JoshAtticusID account from a device or location we don't recognize.</small>
         </div>
     </div>
 </body>
@@ -534,8 +532,7 @@ You can manage your authorized applications anytime from your dashboard.
 
 If you didn't authorize this application, please revoke its access immediately.
 
-Best regards,
-JoshAtticusID Security Team
+You are recieving this email because you authorized a new application to access your JoshAtticusID account.
 """
 
     html_content = f"""
@@ -594,7 +591,7 @@ JoshAtticusID Security Team
         <p>You can manage your authorized applications anytime from your dashboard.</p>
         <p>If you didn't authorize this application, please revoke its access immediately.</p>
         <div class="footer">
-            <p>Best regards,<br>JoshAtticusID Security Team</p>
+            <small>You are recieving this email because you authorized a new application to access your JoshAtticusID account.</small>
         </div>
     </div>
 </body>
@@ -617,8 +614,7 @@ All user authorizations for this application have been revoked and the app can n
 
 If you believe this was done in error, please reply to this email.
 
-Best regards,
-JoshAtticus
+You are recieving this email because your app has violated our Terms of Service or Privacy Policy.
 """
 
     html_content = f"""
@@ -677,7 +673,7 @@ JoshAtticus
         <p>All user authorizations for this application have been revoked and the app can no longer be used.</p>
         <p>If you believe this was done in error, please reply to this email.</p>
         <div class="footer">
-            <p>Best regards,<br>JoshAtticus</p>
+            <small>You are recieving this email because your app has violated our Terms of Service or Privacy Policy.</small>
         </div>
     </div>
 </body>
@@ -696,8 +692,7 @@ Congratulations! Your OAuth application "{app_name}" has been verified!
 
 Your app will now display a verified badge when users sign in.
 
-Best regards,
-JoshAtticus
+You are recieving this email because we have verified an OAuth Application created by you.
 """
 
     html_content = f"""
@@ -753,7 +748,7 @@ JoshAtticus
             <p>✓ Your app is now verified and will display a verified badge when users sign in.</p>
         </div>
         <div class="footer">
-            <p>Best regards,<br>JoshAtticus</p>
+            <small>You are recieving this email because we have verified an OAuth Application created by you.</small>
         </div>
     </div>
 </body>
@@ -776,8 +771,7 @@ Your app will no longer display a verified badge.
 
 If you believe this was done in error, please reply to this email.
 
-Best regards,
-JoshAtticus
+You are recieving this email because your app verification status has changed.
 """
 
     html_content = f"""
@@ -836,7 +830,7 @@ JoshAtticus
         <p>Your app will no longer display a verified badge.</p>
         <p>If you believe this was done in error, please reply to this email.</p>
         <div class="footer">
-            <p>Best regards,<br>JoshAtticus</p>
+            <small>You are recieving this email because your app verification status has changed.</small>
         </div>
     </div>
 </body>
@@ -855,15 +849,7 @@ Welcome to JoshAtticusID!
 
 Your account has been successfully created and verified. You can now use your JoshAtticusID account to sign in to apps and services that support it.
 
-Here's what you can do:
-- Manage your profile and security settings from your dashboard
-- Authorize apps to access your information securely
-- Monitor your account activity and active sessions
-
-If you have any questions, feel free to reply to this email.
-
-Best regards,
-JoshAtticus
+You are recieving this email because you signed up for a JoshAtticusID account. If this was not you, please reply to this email and let us know.
 """
 
     html_content = f"""
@@ -928,15 +914,9 @@ JoshAtticus
             <p><strong>Your account has been successfully created and verified!</strong></p>
             <p>You can now use your JoshAtticusID account to sign in to apps and services.</p>
         </div>
-        <div class="features">
-            <p><strong>Here's what you can do:</strong></p>
-            <div class="feature-item">✓ Manage your profile and security settings from your dashboard</div>
-            <div class="feature-item">✓ Authorize apps to access your information securely</div>
-            <div class="feature-item">✓ Monitor your account activity and active sessions</div>
-        </div>
         <p>If you have any questions, feel free to reply to this email.</p>
         <div class="footer">
-            <p>Best regards,<br>JoshAtticus</p>
+            <small>You are recieving this email because you signed up for a JoshAtticusID account. If this was not you, please reply to this email and let us know.</small>
         </div>
     </div>
 </body>
@@ -959,8 +939,7 @@ This code will expire in 15 minutes.
 
 If you didn't request this password reset, please ignore this email and ensure your account is secure.
 
-Best regards,
-JoshAtticusID Security Team
+You are recieving this email because you requested a password reset for your JoshAtticusID account. If this was not you, please ignore this email and ensure your account is secure.
 """
 
     html_content = f"""
@@ -1031,7 +1010,7 @@ JoshAtticusID Security Team
             <p>If you didn't request this password reset, please ignore this email and ensure your account is secure.</p>
         </div>
         <div class="footer">
-            <p>Best regards,<br>JoshAtticusID Security Team</p>
+            <small>You are recieving this email because you requested a password reset for your JoshAtticusID account. If this was not you, please ignore this email and ensure your account is secure.</small>
         </div>
     </div>
 </body>
