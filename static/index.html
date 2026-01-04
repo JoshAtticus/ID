@@ -327,11 +327,16 @@
                     <input type="password" id="password" name="password" required placeholder=" ">
                     <label for="password">Password</label>
                 </div>
+                <div style="display: flex; align-items: center; margin-top: 12px;">
+                    <input type="checkbox" id="rememberMe" style="width: auto; margin-right: 8px;">
+                    <label for="rememberMe" style="position: static; transform: none; pointer-events: auto; color: var(--text-color); font-size: 14px;">Remember me</label>
+                </div>
                 <div class="error-text" id="login-error"></div>
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <a href="/signup">Don't have an account?</a>
+                <a href="/signup" id="signupLink">Don't have an account?</a>
+                <a href="#" id="switchAccountLink" style="display: none; color: var(--primary-color); text-decoration: none; font-size: 14px;">Switch account</a>
                 <button type="button" id="nextButton">Next</button>
                 <button type="submit" id="signInButton" style="display: none;">Sign in</button>
             </div>
@@ -358,6 +363,29 @@
                     subtitle.textContent = 'Please sign in to access that page';
                 } else if (reason === 'expired_token') {
                     subtitle.textContent = 'You were signed out, please sign back in';
+                }
+                
+                // Pre-fill email if remembered
+                const savedEmail = localStorage.getItem('remembered_email');
+                const savedName = localStorage.getItem('remembered_name');
+                
+                if (savedEmail && savedName) {
+                    document.getElementById('email').value = savedEmail;
+                    document.getElementById('rememberMe').checked = true;
+                    
+                    // Show welcome back state
+                    document.querySelector('h2').textContent = `Welcome back, ${savedName.split(' ')[0]}`;
+                    document.getElementById('subtitle').textContent = savedEmail;
+                    document.getElementById('emailStep').style.display = 'none';
+                    document.getElementById('passwordStep').style.display = 'block';
+                    document.getElementById('nextButton').style.display = 'none';
+                    document.getElementById('signInButton').style.display = 'block';
+                    document.getElementById('signupLink').style.display = 'none';
+                    document.getElementById('switchAccountLink').style.display = 'block';
+                    document.getElementById('password').focus();
+                } else if (savedEmail) {
+                    document.getElementById('email').value = savedEmail;
+                    document.getElementById('rememberMe').checked = true;
                 }
             };
 
@@ -405,6 +433,13 @@
             document.getElementById('errorContainer').style.display = 'flex';
         }
 
+        document.getElementById('switchAccountLink').addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('remembered_email');
+            localStorage.removeItem('remembered_name');
+            location.reload();
+        });
+
         document.getElementById('nextButton').addEventListener('click', async function(event) {
             event.preventDefault();
             clearError();
@@ -444,6 +479,7 @@
             clearError();
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
+            const rememberMe = document.getElementById('rememberMe').checked;
 
             try {
                 const response = await fetch('account/login', {
@@ -451,12 +487,22 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({ email, password, remember_me: rememberMe })
                 });
 
                 const data = await response.json();
                 if (response.ok) {
                     localStorage.setItem('token', data.token);
+                    
+                    if (rememberMe) {
+                        localStorage.setItem('remembered_email', email);
+                        if (data.user && data.user.full_name) {
+                            localStorage.setItem('remembered_name', data.user.full_name);
+                        }
+                    } else {
+                        localStorage.removeItem('remembered_email');
+                        localStorage.removeItem('remembered_name');
+                    }
                     
                     const params = new URLSearchParams(window.location.search);
                     const next = params.get('next');

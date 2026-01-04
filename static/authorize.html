@@ -340,8 +340,28 @@
                     return;
                 }
 
-                // Token is valid, proceed to load app info.
+                // Token is valid, check authorization status
                 const params = new URLSearchParams(window.location.search);
+                const checkAuthResponse = await fetch(`/oauth/check-authorization?client_id=${params.get('client_id')}&scope=${params.get('scope')}`, {
+                    headers: { 'Authorization': token }
+                });
+                
+                if (checkAuthResponse.ok) {
+                    const authStatus = await checkAuthResponse.json();
+                    if (authStatus.authorized && !authStatus.requires_consent) {
+                        // Auto-authorize
+                        document.querySelector('.login-container').innerHTML = '<h2>Redirecting...</h2><p>You are being redirected back to the application.</p>';
+                        authorize();
+                        return;
+                    }
+                    
+                    // If authorized but requires consent (e.g. 4th sign in), change title
+                    if (authStatus.authorized && authStatus.requires_consent) {
+                        document.querySelector('h2').textContent = "You're signing back into";
+                    }
+                }
+
+                // Proceed to load app info.
                 const appInfoResponse = await fetch(`/oauth/app-info?client_id=${params.get('client_id')}`);
                 const app = await appInfoResponse.json();
 
@@ -360,9 +380,17 @@
                 const p = document.createElement('p');
                 const strong = document.createElement('strong');
                 strong.appendChild(appNameContainer);
-                p.textContent = 'The application ';
-                p.appendChild(strong);
-                p.appendChild(document.createTextNode(' is requesting access to your JoshAtticusID.'));
+                
+                // If signing back in, change the text slightly
+                if (document.querySelector('h2').textContent.includes("signing back into")) {
+                     document.querySelector('h2').appendChild(document.createTextNode(" " + (app.name || '')));
+                     p.textContent = 'This application has access to your JoshAtticusID.';
+                } else {
+                    p.textContent = 'The application ';
+                    p.appendChild(strong);
+                    p.appendChild(document.createTextNode(' is requesting access to your JoshAtticusID.'));
+                }
+                
                 appInfo.innerHTML = '';
                 appInfo.appendChild(p);
 

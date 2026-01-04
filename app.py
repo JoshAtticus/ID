@@ -14,6 +14,7 @@ import base64
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import importlib.util
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
@@ -32,6 +33,30 @@ app.config['SMTP_FROM_EMAIL'] = os.environ.get("SMTP_FROM_EMAIL")
 app.config['SMTP_FROM_NAME'] = os.environ.get("SMTP_FROM_NAME", "JoshAtticusID")
 
 db = SQLAlchemy(app)
+
+def run_migrations(app, db):
+    migration_folder = os.path.join(os.path.dirname(__file__), 'migrations')
+    if not os.path.exists(migration_folder):
+        return
+    
+    print("Checking for migrations...")
+    migration_files = sorted([f for f in os.listdir(migration_folder) if f.endswith('.py')])
+    
+    for filename in migration_files:
+        try:
+            filepath = os.path.join(migration_folder, filename)
+            spec = importlib.util.spec_from_file_location("migration", filepath)
+            migration = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(migration)
+            if hasattr(migration, 'upgrade'):
+                print(f"Running migration: {filename}")
+                migration.upgrade(app, db)
+        except Exception as e:
+            print(f"Error running migration {filename}: {e}")
+
+with app.app_context():
+    db.create_all()
+    run_migrations(app, db)
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
@@ -176,6 +201,7 @@ class OAuthAuthorization(db.Model):
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     last_used = db.Column(db.DateTime(timezone=True))
+    usage_count = db.Column(db.Integer, default=0)
 
 
 class OAuthCode(db.Model):
@@ -1209,14 +1235,18 @@ def login():
     data = request.get_json()
     email = data.get("email")
     password = data.get("password")
+    remember_me = data.get("remember_me", False)
 
     user = User.query.filter_by(email=email).first()
 
     if user and user.check_password(password):
         current_time = datetime.now(timezone.utc)  # Get current UTC time
+        
+        # Default to 24 hours, extend to 30 days if remember_me is True
+        expiration_delta = timedelta(days=30) if remember_me else timedelta(hours=24)
 
         token = jwt.encode(
-            {"user_id": user.id, "exp": current_time + timedelta(hours=2)},
+            {"user_id": user.id, "exp": current_time + expiration_delta},
             app.config["SECRET_KEY"],
             algorithm="HS256",
         )
@@ -1243,7 +1273,13 @@ def login():
         db.session.add(login_record)
 
         db.session.commit()
-        return jsonify({"token": token})
+        return jsonify({
+            "token": token,
+            "user": {
+                "full_name": user.full_name,
+                "email": user.email
+            }
+        })
 
     return jsonify({"message": "Invalid credentials"}), 401
 
@@ -1768,6 +1804,51 @@ def oauth_authorize():
         print(f"Error in OAuth authorize: {str(e)}")
         return jsonify({"error": "server_error"}), 500
 
+@app.route("/oauth/check-authorization", methods=["GET"])
+def check_authorization():
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"error": "missing_token"}), 401
+        
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user_id = data["user_id"]
+    except:
+        return jsonify({"error": "invalid_token"}), 401
+
+    client_id = request.args.get("client_id")
+    requested_scopes = request.args.get("scope", "").split()
+    
+    if not client_id:
+        return jsonify({"error": "missing_client_id"}), 400
+        
+    oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
+    if not oauth_app:
+        return jsonify({"error": "invalid_client"}), 404
+        
+    auth = OAuthAuthorization.query.filter_by(user_id=user_id, app_id=oauth_app.id).first()
+    
+    if not auth:
+        return jsonify({
+            "authorized": False,
+            "requires_consent": True
+        })
+        
+    # Check scopes
+    existing_scopes = auth.scopes.split()
+    missing_scopes = [s for s in requested_scopes if s not in existing_scopes]
+    
+    # Logic: Show consent if missing scopes OR usage_count % 4 == 0 (meaning this is the 4th, 8th, etc. time)
+    # We check (usage_count + 1) because usage_count will be incremented after this flow completes
+    requires_consent = bool(missing_scopes) or ((auth.usage_count + 1) % 4 == 0)
+    
+    return jsonify({
+        "authorized": True,
+        "requires_consent": requires_consent,
+        "usage_count": auth.usage_count,
+        "missing_scopes": missing_scopes
+    })
+
 @app.route("/oauth/app-info", methods=["GET"])
 def get_oauth_app_info():
     client_id = request.args.get("client_id")
@@ -1946,12 +2027,14 @@ def oauth_token():
             user_id=oauth_code.user_id,
             app_id=oauth_app.id,
             scopes=oauth_code.scopes,
-            access_token=access_token
+            access_token=access_token,
+            usage_count=1
         )
         db.session.add(auth)
     else:
         auth.scopes = oauth_code.scopes
         auth.access_token = access_token
+        auth.usage_count = (auth.usage_count or 0) + 1
         auth.last_used = datetime.now(timezone.utc)
     db.session.commit()
 
