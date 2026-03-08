@@ -1142,29 +1142,6 @@ def get_security_data():
         return jsonify({"message": "Internal server error"}), 500
 
 
-@app.route("/account/acknowledge-legal", methods=["POST"])
-def acknowledge_legal():
-    token = request.headers.get("Authorization")
-    if not token:
-        return jsonify({"message": "Token is missing"}), 401
-
-    try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        user = User.query.get(data["user_id"])
-        
-        user.has_acknowledged_legal_update = True
-        db.session.commit()
-        
-        return jsonify({"message": "Legal update acknowledged"}), 200
-    except jwt.ExpiredSignatureError:
-        return jsonify({"message": "Token has expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"message": "Invalid token"}), 401
-    except Exception as e:
-        print(f"Error acknowledging legal update: {str(e)}")
-        return jsonify({"message": "Internal server error"}), 500
-
-
 # Modify end_session route to record the action
 @app.route("/account/end-session", methods=["POST"])
 def end_session():
@@ -2098,6 +2075,7 @@ def accept_legal():
         return jsonify({'error': 'User not found'}), 404
 
     user.has_accepted_legal = True
+    user.has_acknowledged_legal_update = True
     db.session.commit()
 
     return jsonify({'message': 'Legal terms accepted'}), 200
