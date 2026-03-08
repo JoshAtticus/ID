@@ -2357,8 +2357,8 @@ def create_developer_app():
     if not name or not redirect_uris or not isinstance(redirect_uris, list) or len(redirect_uris) == 0:
         return jsonify({"message": "Application name and at least one redirect URI are required"}), 400
     
-    if len(redirect_uris) > 3:
-        return jsonify({"message": "You can only have up to 3 redirect URIs"}), 400
+    if len(redirect_uris) > 10:
+        return jsonify({"message": "You can only have up to 10 redirect URIs"}), 400
 
     for uri in redirect_uris:
         parsed_uri = urlparse(uri)
@@ -2450,8 +2450,8 @@ def update_developer_app(app_id):
     if not name or not redirect_uris or not isinstance(redirect_uris, list) or len(redirect_uris) == 0:
         return jsonify({"message": "Application name and at least one redirect URI are required"}), 400
     
-    if len(redirect_uris) > 3:
-        return jsonify({"message": "You can only have up to 3 redirect URIs"}), 400
+    if len(redirect_uris) > 10:
+        return jsonify({"message": "You can only have up to 10 redirect URIs"}), 400
 
     for uri in redirect_uris:
         parsed_uri = urlparse(uri)

@@ -875,7 +875,7 @@
             const button = document.getElementById(buttonId);
 
             const addInput = () => {
-                if (container.children.length < 3) {
+                if (container.children.length < 10) {
                     const inputGroup = document.createElement('div');
                     inputGroup.className = 'redirect-uri-group';
                     inputGroup.innerHTML = `
@@ -888,7 +888,7 @@
                         button.style.display = 'block';
                     });
                 }
-                if (container.children.length >= 3) {
+                if (container.children.length >= 10) {
                     button.style.display = 'none';
                 }
             };
@@ -898,7 +898,7 @@
             container.addEventListener('click', (e) => {
                 if (e.target.classList.contains('remove-uri-btn')) {
                     e.target.parentElement.remove();
-                     if (container.children.length < 3) {
+                     if (container.children.length < 10) {
                         button.style.display = 'block';
                     }
                 }
@@ -1027,7 +1027,7 @@
                     `;
                     container.appendChild(inputGroup);
             });
-            document.getElementById('addEditUriBtn').style.display = container.children.length < 3 ? 'block' : 'none';
+            document.getElementById('addEditUriBtn').style.display = container.children.length < 10 ? 'block' : 'none';
 
             document.getElementById('createAppForm').style.display = 'none';
             document.getElementById('editAppForm').style.display = 'block';
