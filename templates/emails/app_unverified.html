@@ -1,0 +1,61 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            color: #f28b82;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .warning {
+            background: rgba(253, 214, 99, 0.1);
+            border-left: 4px solid #fdd663;
+            padding: 16px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        p {
+            line-height: 1.6;
+            color: #e8eaed;
+        }
+        .footer {
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚠️ Verification Removed</h1>
+        <p>Hello,</p>
+        <p>Your OAuth application <strong>"{{ app_name }}"</strong> is no longer verified.</p>
+        <div class="warning">
+            <p><strong>Reason:</strong></p>
+            <p>{{ reason }}</p>
+        </div>
+        <p>Your app will no longer display a verified badge.</p>
+        <p>If you believe this was done in error, please reply to this email.</p>
+        <div class="footer">
+            <small>You are recieving this email because the verification status of an app you created has changed.</small>
+        </div>
+    </div>
+</body>
+</html>

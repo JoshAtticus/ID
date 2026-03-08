@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="/static/security.js"></script>
+    <script defer data-domain="id.joshattic.us" src="https://plausible.joshattic.us/js/script.file-downloads.hash.outbound-links.pageview-props.tagged-events.js"></script>
+    <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
     <style>
         :root {
             --background-start-rgb: 10, 10, 10;
@@ -418,6 +420,26 @@
 
                 <div id="searchResult"></div>
             </div>
+        </div>
+
+        <div class="apps-list" style="margin-top: 24px;">
+            <h2>Legal Updates</h2>
+            <p style="color: var(--secondary-color); margin-bottom: 20px;">
+                Send email notifications to all users about updates to legal documents.
+            </p>
+            
+            <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="display: block; color: var(--secondary-color); margin-bottom: 8px; font-size: 14px;">Update Type</label>
+                    <select id="updateType" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid #5f6368; border-radius: 8px; color: var(--text-color); font-size: 14px;">
+                        <option value="terms">Terms of Service</option>
+                        <option value="privacy">Privacy Policy</option>
+                        <option value="both">Both</option>
+                    </select>
+                </div>
+                <button onclick="sendLegalUpdate()" class="button" style="height: 40px;">Send Update Email</button>
+            </div>
+            <p id="updateStatus" style="margin-top: 16px; font-size: 14px;"></p>
         </div>
     </div>
 
@@ -984,6 +1006,52 @@
                 });
             }
         });
+
+        async function sendLegalUpdate() {
+            const type = document.getElementById('updateType').value;
+            const statusEl = document.getElementById('updateStatus');
+            const btn = document.querySelector('button[onclick="sendLegalUpdate()"]');
+            
+            let typeText = type === 'both' ? 'Terms of Service and Privacy Policy' : 
+                          type === 'terms' ? 'Terms of Service' : 'Privacy Policy';
+            
+            if (!confirm(`Are you sure you want to send a ${typeText} update email to ALL users? This cannot be undone.`)) {
+                return;
+            }
+            
+            statusEl.textContent = 'Sending emails... This may take a while.';
+            statusEl.style.color = 'var(--warning-color)';
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            
+            try {
+                const response = await fetch('/admin/send-legal-updates', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ type })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusEl.textContent = data.message;
+                    statusEl.style.color = 'var(--success-color)';
+                } else {
+                    statusEl.textContent = data.message || 'Failed to send emails';
+                    statusEl.style.color = 'var(--danger-color)';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                statusEl.textContent = 'An error occurred';
+                statusEl.style.color = 'var(--danger-color)';
+            } finally {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
+        }
 
         // Initialize
         checkAdminAccess();

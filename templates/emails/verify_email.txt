@@ -1,0 +1,12 @@
+
+Hello,
+
+Thank you for signing up for JoshAtticusID!
+
+Your verification code is: {{ code }}
+
+This code will expire in 15 minutes.
+
+If you didn't request this verification, please ignore this email.
+
+You are recieving this email because you signed up for a JoshAtticusID account. If this was not you, please ignore this email and nothing will happen.

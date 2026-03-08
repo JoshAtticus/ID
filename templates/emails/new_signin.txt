@@ -1,0 +1,14 @@
+
+Hello {{ user_name }},
+
+We detected a new sign-in to your JoshAtticusID account.
+
+Device: {{ device_info }}
+Time: {{ time }}
+Location: {{ location }}
+
+If this was you, you can safely ignore this email.
+
+If you don't recognize this sign-in, please secure your account immediately by changing your password.
+
+You are recieving this email because someone signed into your JoshAtticusID from a device or location we don't recognize.

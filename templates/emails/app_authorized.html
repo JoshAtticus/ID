@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            color: #8ab4f8;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background: rgba(138, 180, 248, 0.1);
+            border-left: 4px solid #8ab4f8;
+            border-radius: 4px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+        p {
+            line-height: 1.6;
+            color: #e8eaed;
+        }
+        .footer {
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 New App Authorized</h1>
+        <p>Hello {{ user.full_name }},</p>
+        <p>You have authorized a new application to access your JoshAtticusID account.</p>
+        <div class="info-box">
+            <p><strong>Application:</strong> {{ app_name }}</p>
+            <p><strong>Time:</strong> {{ time }}</p>
+        </div>
+        <p>You can manage your authorized applications anytime from your dashboard.</p>
+        <p>If you didn't authorize this application, please revoke its access immediately.</p>
+        <div class="footer">
+            <small>You are recieving this email because you authorized a new application to access your JoshAtticusID account.</small>
+        </div>
+    </div>
+</body>
+</html>

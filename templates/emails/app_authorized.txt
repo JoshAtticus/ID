@@ -1,0 +1,12 @@
+Hello {{ user.full_name }},
+
+You have authorized a new application to access your JoshAtticusID account.
+
+Application: {{ app_name }}
+Time: {{ time }}
+
+You can manage your authorized applications anytime from your dashboard.
+
+If you didn't authorize this application, please revoke its access immediately.
+
+You are recieving this email because you authorized a new application to access your JoshAtticusID account.

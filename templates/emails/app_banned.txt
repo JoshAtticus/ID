@@ -1,0 +1,13 @@
+
+Hello,
+
+Your OAuth application "{{ app_name }}" has been banned.
+
+Reason:
+{{ reason }}
+
+All authorizations for this application have been revoked.
+
+If you believe this was done in error, please reply to this email.
+
+You are recieving this email because an app you created was banned.

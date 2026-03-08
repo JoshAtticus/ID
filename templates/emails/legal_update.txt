@@ -1,0 +1,12 @@
+
+Hello,
+
+We have updated our {{ update_text }}.
+
+Please review the updated documents here: {{ link }}
+
+By continuing to use JoshAtticusID, you agree to these changes.
+
+If you have any questions, please contact support.
+
+You are receiving this email because you have a JoshAtticusID account and are subject to the updated terms.

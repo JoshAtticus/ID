@@ -1,0 +1,61 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            color: #8ab4f8;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: inline-block;
+            background: #8ab4f8;
+            color: #202124;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            margin: 20px 0;
+        }
+        p {
+            line-height: 1.6;
+            color: #e8eaed;
+        }
+        .footer {
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Legal Documents Update</h1>
+        <p>Hello,</p>
+        <p>We wanted to let you know that we have updated our <strong>{{ update_text }}</strong>.</p>
+        <p>We are committed to being transparent about how we process your data and keeping our terms clear.</p>
+        <a href="{{ link }}" class="btn">Review Updates</a>
+        <p>By continuing to use JoshAtticusID, you agree to these changes.</p>
+        <div class="footer">
+            <small>You are receiving this email because you have a JoshAtticusID account and are subject to the updated terms.</small>
+        </div>
+    </div>
+</body>
+</html>

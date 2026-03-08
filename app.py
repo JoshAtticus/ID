@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, redirect
+from flask import Flask, request, jsonify, send_from_directory, redirect, render_template
 from flask_sqlalchemy import SQLAlchemy
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -173,6 +173,7 @@ class User(db.Model):
     sessions = db.relationship("Session", backref="user", lazy=True)
     login_history = db.relationship("LoginHistory", backref="user", lazy=True)
     has_accepted_legal = db.Column(db.Boolean, default=False, nullable=False)
+    has_acknowledged_legal_update = db.Column(db.Boolean, default=True, nullable=False)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -321,6 +322,16 @@ def calculate_security_score(user, sessions):
             'description': 'Your password is one of the most commonly used passwords. Change it immediately!'
         })
     
+    # Check for legal updates
+    if not user.has_acknowledged_legal_update:
+        score -= 2.0
+        reasons.append({
+            'reason': 'Legal documents have been updated',
+            'impact': '-2.0',
+            'action': 'review_legal',
+            'description': 'We have updated our Terms of Service and/or Privacy Policy. Please review them.'
+        })
+
     return max(0, round(score, 1)), reasons
 
 # Add this function after other utility functions
@@ -378,84 +389,8 @@ def send_verification_email(email, code):
         msg['From'] = f"{app.config['SMTP_FROM_NAME']} <{app.config['SMTP_FROM_EMAIL']}>"
         msg['To'] = email
 
-        text_content = f"""
-Hello,
-
-Thank you for signing up for JoshAtticusID!
-
-Your verification code is: {code}
-
-This code will expire in 15 minutes.
-
-If you didn't request this verification, please ignore this email.
-
-You are recieving this email because you signed up for a JoshAtticusID account. If this was not you, please ignore this email and nothing will happen.
-"""
-
-        html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
-            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
-            color: #e8eaed;
-            padding: 20px;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background: rgba(45, 46, 48, 0.6);
-            border-radius: 12px;
-            padding: 32px;
-            backdrop-filter: blur(10px);
-        }}
-        h1 {{
-            color: #8ab4f8;
-            font-size: 24px;
-            margin-bottom: 20px;
-        }}
-        .code {{
-            background: rgba(138, 180, 248, 0.1);
-            border: 2px solid #8ab4f8;
-            border-radius: 8px;
-            padding: 24px;
-            text-align: center;
-            font-size: 32px;
-            font-weight: bold;
-            letter-spacing: 8px;
-            color: #8ab4f8;
-            margin: 24px 0;
-        }}
-        p {{
-            line-height: 1.6;
-            color: #e8eaed;
-        }}
-        .footer {{
-            margin-top: 32px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 14px;
-            color: #969ba1;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Verify Your Email</h1>
-        <p>Thank you for signing up for JoshAtticusID!</p>
-        <p>Your verification code is:</p>
-        <div class="code">{code}</div>
-        <p>This code will expire in 15 minutes.</p>
-        <p>If you didn't request this verification, please ignore this email.</p>
-        <div class="footer">
-            <small>You are recieving this email because you signed up for a JoshAtticusID account. If this was not you, please ignore this email and nothing will happen.</small>
-        </div>
-    </div>
-</body>
-</html>
-"""
+        text_content = render_template('emails/verify_email.txt', code=code)
+        html_content = render_template('emails/verify_email.html', code=code)
 
         part1 = MIMEText(text_content, 'plain')
         part2 = MIMEText(html_content, 'html')
@@ -501,599 +436,126 @@ def send_email(to_email, subject, text_content, html_content):
         return False
 
 
+def send_legal_update_email(email, update_type):
+    """Send email about legal document updates"""
+    try:
+        subject = "Important Update to Our Legal Documents"
+        update_text = ""
+        link = "https://id.joshattic.us/terms"
+        
+        if update_type == "terms":
+            update_text = "Terms of Service"
+            link = "https://id.joshattic.us/terms"
+        elif update_type == "privacy":
+            update_text = "Privacy Policy"
+            link = "https://id.joshattic.us/privacy"
+        else:
+            update_text = "Terms of Service and Privacy Policy"
+            link = "https://id.joshattic.us/terms"
+
+        text_content = render_template('emails/legal_update.txt',
+                                     update_text=update_text,
+                                     link=link)
+                                     
+        html_content = render_template('emails/legal_update.html',
+                                     update_text=update_text,
+                                     link=link)
+        
+        return send_email(email, subject, text_content, html_content)
+
+    except Exception as e:
+        print(f"Error sending legal update email: {str(e)}")
+        return False
+        
+        return True
+    except Exception as e:
+        print(f"Error sending email: {str(e)}")
+        return False
+
+
 def send_new_signin_email(user, device_info, location="Unknown"):
     """Send email notification for new sign-in"""
-    text_content = f"""
-Hello {user.full_name},
+    try:
+        if not all([app.config['SMTP_USERNAME'], app.config['SMTP_PASSWORD'], app.config['SMTP_FROM_EMAIL']]):
+            print("SMTP configuration is missing")
+            return False
 
-We detected a new sign-in to your JoshAtticusID account.
+        time_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+        
+        text_content = render_template('emails/new_signin.txt', 
+                                     user_name=user.full_name, 
+                                     device_info=device_info, 
+                                     location=location,
+                                     time=time_str)
+                                     
+        html_content = render_template('emails/new_signin.html',
+                                     user_name=user.full_name, 
+                                     device_info=device_info, 
+                                     location=location,
+                                     time=time_str)
 
-Device: {device_info}
-Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
-Location: {location}
-
-If this was you, you can safely ignore this email.
-
-If you don't recognize this sign-in, please secure your account immediately by changing your password.
-
-You are recieving this email because someone signed into your JoshAtticusID from a device or location we don't recognize.
-"""
-
-    html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
-            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
-            color: #e8eaed;
-            padding: 20px;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background: rgba(45, 46, 48, 0.6);
-            border-radius: 12px;
-            padding: 32px;
-            backdrop-filter: blur(10px);
-        }}
-        h1 {{
-            color: #8ab4f8;
-            font-size: 24px;
-            margin-bottom: 20px;
-        }}
-        .info-box {{
-            background: rgba(138, 180, 248, 0.1);
-            border-left: 4px solid #8ab4f8;
-            border-radius: 4px;
-            padding: 16px;
-            margin: 20px 0;
-        }}
-        .warning {{
-            background: rgba(242, 139, 130, 0.1);
-            border-left: 4px solid #f28b82;
-            padding: 16px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }}
-        p {{
-            line-height: 1.6;
-            color: #e8eaed;
-        }}
-        .footer {{
-            margin-top: 32px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 14px;
-            color: #969ba1;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔐 New Sign-In Detected</h1>
-        <p>Hello {user.full_name},</p>
-        <p>We detected a new sign-in to your JoshAtticusID account.</p>
-        <div class="info-box">
-            <p><strong>Device:</strong> {device_info}</p>
-            <p><strong>Time:</strong> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
-            <p><strong>Location:</strong> {location}</p>
-        </div>
-        <p>If this was you, you can safely ignore this email.</p>
-        <div class="warning">
-            <p><strong>⚠️ Didn't recognize this sign-in?</strong></p>
-            <p>Please secure your account immediately by changing your password.</p>
-        </div>
-        <div class="footer">
-            <small>You are recieving this email because someone signed into your JoshAtticusID account from a device or location we don't recognize.</small>
-        </div>
-    </div>
-</body>
-</html>
-"""
-    
-    send_email(user.email, "New Sign-In to Your JoshAtticusID Account", text_content, html_content)
+        send_email(user.email, "New sign-in to JoshAtticusID", text_content, html_content)
+    except Exception as e:
+        print(f"Error sending new signin email: {str(e)}")
+        return False
 
 
 def send_oauth_authorization_email(user, app_name):
     """Send email notification for new OAuth app authorization"""
-    text_content = f"""
-Hello {user.full_name},
-
-You have authorized a new application to access your JoshAtticusID account.
-
-Application: {app_name}
-Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
-
-You can manage your authorized applications anytime from your dashboard.
-
-If you didn't authorize this application, please revoke its access immediately.
-
-You are recieving this email because you authorized a new application to access your JoshAtticusID account.
-"""
-
-    html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
-            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
-            color: #e8eaed;
-            padding: 20px;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background: rgba(45, 46, 48, 0.6);
-            border-radius: 12px;
-            padding: 32px;
-            backdrop-filter: blur(10px);
-        }}
-        h1 {{
-            color: #8ab4f8;
-            font-size: 24px;
-            margin-bottom: 20px;
-        }}
-        .info-box {{
-            background: rgba(138, 180, 248, 0.1);
-            border-left: 4px solid #8ab4f8;
-            border-radius: 4px;
-            padding: 16px;
-            margin: 20px 0;
-        }}
-        p {{
-            line-height: 1.6;
-            color: #e8eaed;
-        }}
-        .footer {{
-            margin-top: 32px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 14px;
-            color: #969ba1;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔗 New App Authorized</h1>
-        <p>Hello {user.full_name},</p>
-        <p>You have authorized a new application to access your JoshAtticusID account.</p>
-        <div class="info-box">
-            <p><strong>Application:</strong> {app_name}</p>
-            <p><strong>Time:</strong> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
-        </div>
-        <p>You can manage your authorized applications anytime from your dashboard.</p>
-        <p>If you didn't authorize this application, please revoke its access immediately.</p>
-        <div class="footer">
-            <small>You are recieving this email because you authorized a new application to access your JoshAtticusID account.</small>
-        </div>
-    </div>
-</body>
-</html>
-"""
+    current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+    text_content = render_template('emails/app_authorized.txt', user=user, app_name=app_name, time=current_time)
+    html_content = render_template('emails/app_authorized.html', user=user, app_name=app_name, time=current_time)
     
     send_email(user.email, f"New App Authorized: {app_name}", text_content, html_content)
 
 
 def send_app_banned_email(owner_email, app_name, reason):
     """Send email to app owner when their app is banned"""
-    text_content = f"""
-Hello,
-
-Your OAuth application "{app_name}" has been banned.
-
-Reason: {reason}
-
-All user authorizations for this application have been revoked and the app can no longer be used.
-
-If you believe this was done in error, please reply to this email.
-
-You are recieving this email because your app has violated our Terms of Service or Privacy Policy.
-"""
-
-    html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
-            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
-            color: #e8eaed;
-            padding: 20px;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background: rgba(45, 46, 48, 0.6);
-            border-radius: 12px;
-            padding: 32px;
-            backdrop-filter: blur(10px);
-        }}
-        h1 {{
-            color: #f28b82;
-            font-size: 24px;
-            margin-bottom: 20px;
-        }}
-        .warning {{
-            background: rgba(242, 139, 130, 0.1);
-            border-left: 4px solid #f28b82;
-            padding: 16px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }}
-        p {{
-            line-height: 1.6;
-            color: #e8eaed;
-        }}
-        .footer {{
-            margin-top: 32px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 14px;
-            color: #969ba1;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🚫 Application Banned</h1>
-        <p>Hello,</p>
-        <p>Your OAuth application <strong>"{app_name}"</strong> has been banned.</p>
-        <div class="warning">
-            <p><strong>Reason:</strong></p>
-            <p>{reason}</p>
-        </div>
-        <p>All user authorizations for this application have been revoked and the app can no longer be used.</p>
-        <p>If you believe this was done in error, please reply to this email.</p>
-        <div class="footer">
-            <small>You are recieving this email because your app has violated our Terms of Service or Privacy Policy.</small>
-        </div>
-    </div>
-</body>
-</html>
-"""
-    
-    send_email(owner_email, f"Your App '{app_name}' Has Been Banned", text_content, html_content)
+    try:
+        text_content = render_template('emails/app_banned.txt', app_name=app_name, reason=reason)
+        html_content = render_template('emails/app_banned.html', app_name=app_name, reason=reason)
+        
+        send_email(owner_email, f"Your App '{app_name}' Has Been Banned", text_content, html_content)
+    except Exception as e:
+        print(f"Error sending app banned email: {str(e)}")
 
 
 def send_app_verified_email(owner_email, app_name):
     """Send email to app owner when their app is verified"""
-    text_content = f"""
-Hello,
+    try:
+        user = User.query.filter_by(email=owner_email).first()
+        owner_name = user.full_name if user else "Developer"
 
-Congratulations! Your OAuth application "{app_name}" has been verified!
-
-Your app will now display a verified badge when users sign in.
-
-You are recieving this email because we have verified an OAuth Application created by you.
-"""
-
-    html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
-            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
-            color: #e8eaed;
-            padding: 20px;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background: rgba(45, 46, 48, 0.6);
-            border-radius: 12px;
-            padding: 32px;
-            backdrop-filter: blur(10px);
-        }}
-        h1 {{
-            color: #81c995;
-            font-size: 24px;
-            margin-bottom: 20px;
-        }}
-        .success {{
-            background: rgba(129, 201, 149, 0.1);
-            border-left: 4px solid #81c995;
-            padding: 16px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }}
-        p {{
-            line-height: 1.6;
-            color: #e8eaed;
-        }}
-        .footer {{
-            margin-top: 32px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 14px;
-            color: #969ba1;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>✓ Application Verified</h1>
-        <p>Hello,</p>
-        <p>Congratulations! Your OAuth application <strong>"{app_name}"</strong> has been verified!</p>
-        <div class="success">
-            <p>✓ Your app is now verified and will display a verified badge when users sign in.</p>
-        </div>
-        <div class="footer">
-            <small>You are recieving this email because we have verified an OAuth Application created by you.</small>
-        </div>
-    </div>
-</body>
-</html>
-"""
+        text_content = render_template('emails/app_verified.txt', owner_name=owner_name, app_name=app_name)
+        html_content = render_template('emails/app_verified.html', owner_name=owner_name, app_name=app_name)
+        
+        send_email(owner_email, f"Your App '{app_name}' Is Now Verified!", text_content, html_content)
+    except Exception as e:
+        print(f"Error sending app verified email: {str(e)}")
     
     send_email(owner_email, f"Your App '{app_name}' Is Now Verified!", text_content, html_content)
 
 
 def send_app_unverified_email(owner_email, app_name, reason):
     """Send email to app owner when their app verification is removed"""
-    text_content = f"""
-Hello,
-
-Your OAuth application "{app_name}" verification has been removed.
-
-Reason: {reason}
-
-Your app will no longer display a verified badge.
-
-If you believe this was done in error, please reply to this email.
-
-You are recieving this email because your app verification status has changed.
-"""
-
-    html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
-            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
-            color: #e8eaed;
-            padding: 20px;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background: rgba(45, 46, 48, 0.6);
-            border-radius: 12px;
-            padding: 32px;
-            backdrop-filter: blur(10px);
-        }}
-        h1 {{
-            color: #fdd663;
-            font-size: 24px;
-            margin-bottom: 20px;
-        }}
-        .warning {{
-            background: rgba(253, 214, 99, 0.1);
-            border-left: 4px solid #fdd663;
-            padding: 16px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }}
-        p {{
-            line-height: 1.6;
-            color: #e8eaed;
-        }}
-        .footer {{
-            margin-top: 32px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 14px;
-            color: #969ba1;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>⚠️ Verification Removed</h1>
-        <p>Hello,</p>
-        <p>Your OAuth application <strong>"{app_name}"</strong> is no longer verified.</p>
-        <div class="warning">
-            <p><strong>Reason:</strong></p>
-            <p>{reason}</p>
-        </div>
-        <p>Your app will no longer display a verified badge.</p>
-        <p>If you believe this was done in error, please reply to this email.</p>
-        <div class="footer">
-            <small>You are recieving this email because your app verification status has changed.</small>
-        </div>
-    </div>
-</body>
-</html>
-"""
+    text_content = render_template('emails/app_unverified.txt', app_name=app_name, reason=reason)
+    html_content = render_template('emails/app_unverified.html', app_name=app_name, reason=reason)
     
     send_email(owner_email, f"Verification Removed: {app_name}", text_content, html_content)
 
 
 def send_welcome_email(user):
     """Send welcome email to new users"""
-    text_content = f"""
-Hello {user.full_name},
-
-Welcome to JoshAtticusID!
-
-Your account has been successfully created and verified. You can now use your JoshAtticusID account to sign in to apps and services that support it.
-
-You are recieving this email because you signed up for a JoshAtticusID account. If this was not you, please reply to this email and let us know.
-"""
-
-    html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
-            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
-            color: #e8eaed;
-            padding: 20px;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background: rgba(45, 46, 48, 0.6);
-            border-radius: 12px;
-            padding: 32px;
-            backdrop-filter: blur(10px);
-        }}
-        h1 {{
-            color: #8ab4f8;
-            font-size: 28px;
-            margin-bottom: 20px;
-        }}
-        .welcome-box {{
-            background: rgba(138, 180, 248, 0.1);
-            border-left: 4px solid #8ab4f8;
-            border-radius: 4px;
-            padding: 20px;
-            margin: 24px 0;
-        }}
-        .features {{
-            margin: 24px 0;
-        }}
-        .feature-item {{
-            padding: 12px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }}
-        .feature-item:last-child {{
-            border-bottom: none;
-        }}
-        p {{
-            line-height: 1.6;
-            color: #e8eaed;
-        }}
-        .footer {{
-            margin-top: 32px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 14px;
-            color: #969ba1;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🎉 Welcome to JoshAtticusID!</h1>
-        <p>Hello {user.full_name},</p>
-        <div class="welcome-box">
-            <p><strong>Your account has been successfully created and verified!</strong></p>
-            <p>You can now use your JoshAtticusID account to sign in to apps and services.</p>
-        </div>
-        <p>If you have any questions, feel free to reply to this email.</p>
-        <div class="footer">
-            <small>You are recieving this email because you signed up for a JoshAtticusID account. If this was not you, please reply to this email and let us know.</small>
-        </div>
-    </div>
-</body>
-</html>
-"""
+    text_content = render_template('emails/welcome.txt', user=user)
+    html_content = render_template('emails/welcome.html', user=user)
     
     send_email(user.email, "Welcome to JoshAtticusID! 🎉", text_content, html_content)
 
 
 def send_password_reset_email(email, code):
     """Send password reset email with verification code"""
-    text_content = f"""
-Hello,
-
-You requested to reset your password for your JoshAtticusID account.
-
-Your password reset code is: {code}
-
-This code will expire in 15 minutes.
-
-If you didn't request this password reset, please ignore this email and ensure your account is secure.
-
-You are recieving this email because you requested a password reset for your JoshAtticusID account. If this was not you, please ignore this email and ensure your account is secure.
-"""
-
-    html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
-            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
-            color: #e8eaed;
-            padding: 20px;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background: rgba(45, 46, 48, 0.6);
-            border-radius: 12px;
-            padding: 32px;
-            backdrop-filter: blur(10px);
-        }}
-        h1 {{
-            color: #8ab4f8;
-            font-size: 24px;
-            margin-bottom: 20px;
-        }}
-        .code {{
-            background: rgba(138, 180, 248, 0.1);
-            border: 2px solid #8ab4f8;
-            border-radius: 8px;
-            padding: 24px;
-            text-align: center;
-            font-size: 32px;
-            font-weight: bold;
-            letter-spacing: 8px;
-            color: #8ab4f8;
-            margin: 24px 0;
-        }}
-        .warning {{
-            background: rgba(242, 139, 130, 0.1);
-            border-left: 4px solid #f28b82;
-            padding: 16px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }}
-        p {{
-            line-height: 1.6;
-            color: #e8eaed;
-        }}
-        .footer {{
-            margin-top: 32px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 14px;
-            color: #969ba1;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔒 Password Reset Request</h1>
-        <p>You requested to reset your password for your JoshAtticusID account.</p>
-        <p>Your password reset code is:</p>
-        <div class="code">{code}</div>
-        <p>This code will expire in 15 minutes.</p>
-        <div class="warning">
-            <p><strong>⚠️ Didn't request this?</strong></p>
-            <p>If you didn't request this password reset, please ignore this email and ensure your account is secure.</p>
-        </div>
-        <div class="footer">
-            <small>You are recieving this email because you requested a password reset for your JoshAtticusID account. If this was not you, please ignore this email and ensure your account is secure.</small>
-        </div>
-    </div>
-</body>
-</html>
-"""
+    text_content = render_template('emails/password_reset.txt', code=code)
+    html_content = render_template('emails/password_reset.html', code=code)
     
     send_email(email, "Password Reset Code - JoshAtticusID", text_content, html_content)
 
@@ -1687,6 +1149,29 @@ def get_security_data():
         return jsonify({"message": "Invalid token"}), 401
     except Exception as e:
         print(f"Security data error: {str(e)}")
+        return jsonify({"message": "Internal server error"}), 500
+
+
+@app.route("/account/acknowledge-legal", methods=["POST"])
+def acknowledge_legal():
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Token is missing"}), 401
+
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        
+        user.has_acknowledged_legal_update = True
+        db.session.commit()
+        
+        return jsonify({"message": "Legal update acknowledged"}), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid token"}), 401
+    except Exception as e:
+        print(f"Error acknowledging legal update: {str(e)}")
         return jsonify({"message": "Internal server error"}), 500
 
 
@@ -2927,6 +2412,46 @@ def admin_edit_app(app_id):
         db.session.commit()
         
         return jsonify({"message": "App updated successfully"}), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid token"}), 401
+
+
+@app.route("/admin/send-legal-updates", methods=["POST"])
+def admin_send_legal_updates():
+    """Admin endpoint to send legal update emails to all users"""
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Token is missing"}), 401
+
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        
+        if not user or not user.is_admin:
+            return jsonify({"message": "Unauthorized - Admin access required"}), 403
+
+        request_data = request.get_json()
+        update_type = request_data.get("type")
+        
+        if update_type not in ["terms", "privacy", "both"]:
+            return jsonify({"message": "Invalid update type"}), 400
+
+        # In a real production app, this should be a background task (e.g. Celery)
+        # For this scale, we'll just iterate
+        users = User.query.all()
+        count = 0
+        
+        for recipient in users:
+            if recipient.email:
+                recipient.has_acknowledged_legal_update = False
+                if send_legal_update_email(recipient.email, update_type):
+                    count += 1
+        
+        db.session.commit()
+        
+        return jsonify({"message": f"Emails sent to {count} users and dashboard notifications updated"}), 200
     except jwt.ExpiredSignatureError:
         return jsonify({"message": "Token has expired"}), 401
     except jwt.InvalidTokenError:

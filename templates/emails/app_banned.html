@@ -1,0 +1,60 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            color: #f28b82;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .danger-box {
+            background: rgba(242, 139, 130, 0.1);
+            border-left: 4px solid #f28b82;
+            padding: 16px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        p {
+            line-height: 1.6;
+            color: #e8eaed;
+        }
+        .footer {
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚫 App Banned</h1>
+        <p>Hello,</p>
+        <div class="danger-box">
+            <p><strong>Your OAuth application "{{ app_name }}" has been banned.</strong></p>
+            <p><strong>Reason:</strong> {{ reason }}</p>
+        </div>
+        <p>All authorizations for this application have been revoked.</p>
+        <p>If you believe this was done in error, please reply to this email.</p>
+        <div class="footer">
+            <small>You are recieving this email because an app you created was banned.</small>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,13 @@
+
+Hello,
+
+Your OAuth application "{{ app_name }}" is no longer verified.
+
+Reason:
+{{ reason }}
+
+Your app will no longer display a verified badge.
+
+If you believe this was done in error, please reply to this email.
+
+You are recieving this email because the verification status of an app you created has changed.

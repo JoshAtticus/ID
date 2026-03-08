@@ -1,0 +1,76 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            color: #8ab4f8;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background: rgba(138, 180, 248, 0.1);
+            border-left: 4px solid #8ab4f8;
+            border-radius: 4px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+        .warning {
+            background: rgba(242, 139, 130, 0.1);
+            border-left: 4px solid #f28b82;
+            padding: 16px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        p {
+            line-height: 1.6;
+            color: #e8eaed;
+        }
+        .footer {
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>New Sign-in Detected</h1>
+        <p>Hello {{ user_name }},</p>
+        <p>We detected a new sign-in to your JoshAtticusID account.</p>
+        
+        <div class="info-box">
+            <p><strong>Device:</strong> {{ device_info }}</p>
+            <p><strong>Time:</strong> {{ time }}</p>
+            <p><strong>Location:</strong> {{ location }}</p>
+        </div>
+
+        <div class="warning">
+            <p><strong>If this wasn't you:</strong></p>
+            <p>Please secure your account immediately by changing your password.</p>
+        </div>
+
+        <p>If this was you, you can safely ignore this email.</p>
+
+        <div class="footer">
+            <small>You are recieving this email because someone signed into your JoshAtticusID from a device or location we don't recognize.</small>
+        </div>
+    </div>
+</body>
+</html>

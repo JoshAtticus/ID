@@ -1,0 +1,63 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: 'Inter', 'Google Sans', Arial, sans-serif;
+            background: linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(30, 30, 30) 100%);
+            color: #e8eaed;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(45, 46, 48, 0.6);
+            border-radius: 12px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            color: #8ab4f8;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .code {
+            background: rgba(138, 180, 248, 0.1);
+            border: 2px solid #8ab4f8;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 8px;
+            color: #8ab4f8;
+            margin: 24px 0;
+        }
+        p {
+            line-height: 1.6;
+            color: #e8eaed;
+        }
+        .footer {
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #969ba1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Verify Your Email</h1>
+        <p>Thank you for signing up for JoshAtticusID!</p>
+        <p>Your verification code is:</p>
+        <div class="code">{{ code }}</div>
+        <p>This code will expire in 15 minutes.</p>
+        <p>If you didn't request this verification, please ignore this email.</p>
+        <div class="footer">
+            <small>You are recieving this email because you signed up for a JoshAtticusID account. If this was not you, please ignore this email and nothing will happen.</small>
+        </div>
+    </div>
+</body>
+</html>

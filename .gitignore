@@ -4,6 +4,7 @@
 instance/users.db
 *.db
 .env
+instance/jwt-rs256.pem
 
 # Node
 node_modules
@@ -18,3 +19,4 @@ __pycache__/
 *.so
 .Python
 .github/COPILOT-INSTRUCTIONS.md
+

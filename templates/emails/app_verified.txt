@@ -1,0 +1,10 @@
+
+Hello {{ owner_name }},
+
+Your OAuth application "{{ app_name }}" has been verified!
+
+This means your application will now display a verified badge to users during authorization.
+
+You can view your application status in the dashboard.
+
+You are recieving this email because the verification status of an app you created has changed.
