@@ -395,7 +395,17 @@
                 appInfo.appendChild(p);
 
                 const scopeItems = document.getElementById('scope-items');
-                const scopes = params.get('scope').split(' ');
+                let scopes = params.get('scope').split(' ').filter(s => s.trim() !== '');
+
+                // Expand openid and profile scopes to explicitly show all information granted
+                if (scopes.includes('openid') || scopes.includes('profile')) {
+                    const implicitScopes = ['name', 'email', 'dob', 'profile_picture'];
+                    implicitScopes.forEach(item => {
+                        if (!scopes.includes(item)) {
+                            scopes.push(item);
+                        }
+                    });
+                }
 
                 scopes.forEach(scope => {
                     const div = document.createElement('div');

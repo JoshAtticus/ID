@@ -73,8 +73,8 @@ OAUTH_SCOPES = {
     "dob": "Access your date of birth",
     "email": "Access your email address",
     "profile_picture": "Access your profile picture",
-    "openid": "OpenID Connect authentication",
-    "profile": "Access your basic profile information",
+    "openid": "OpenID Connect authentication (gives access to your name, email, date of birth, and profile picture)",
+    "profile": "Access your basic profile information (gives access to your name, email, date of birth, and profile picture)",
 }
 
 
@@ -97,7 +97,7 @@ def openid_configuration():
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code"],
         "subject_types_supported": ["public"],
-        "id_token_signing_alg_values_supported": ["RS256"],
+        "id_token_signing_alg_values_supported": ["HS256", "RS256"],
         "scopes_supported": list(OAUTH_SCOPES.keys()),
         "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
         "claims_supported": ["sub", "name", "email", "email_verified", "picture", "birthdate"],
@@ -2038,12 +2038,42 @@ def oauth_token():
         auth.last_used = datetime.now(timezone.utc)
     db.session.commit()
 
-    return jsonify({
+    response_data = {
         "access_token": access_token,
         "token_type": "Bearer",
         "expires_in": 3600,
         "scope": oauth_code.scopes,
-    })
+    }
+
+    scopes_list = oauth_code.scopes.split()
+    if "openid" in scopes_list:
+        user = User.query.get(oauth_code.user_id)
+        base_url = request.url_root.rstrip('/') if request.url_root else "https://id.joshattic.us"
+        id_token_payload = {
+            "iss": base_url,
+            "sub": str(user.id),
+            "aud": oauth_app.client_id,
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+            "iat": datetime.now(timezone.utc),
+        }
+        
+        if "name" in scopes_list or "openid" in scopes_list or "profile" in scopes_list:
+            id_token_payload["name"] = user.full_name
+        if "email" in scopes_list or "openid" in scopes_list or "profile" in scopes_list:
+            id_token_payload["email"] = user.email
+            id_token_payload["email_verified"] = user.email_verified
+        if "dob" in scopes_list or "openid" in scopes_list or "profile" in scopes_list:
+            id_token_payload["birthdate"] = user.dob.strftime("%Y-%m-%d")
+        if "profile_picture" in scopes_list or "openid" in scopes_list or "profile" in scopes_list:
+            if user.profile_picture:
+                id_token_payload["picture"] = f"{base_url}/static/uploads/{user.profile_picture}"
+            else:
+                id_token_payload["picture"] = f"{base_url}/static/uploads/default.png"
+                
+        id_token = jwt.encode(id_token_payload, app.config["SECRET_KEY"], algorithm="HS256")
+        response_data["id_token"] = id_token
+
+    return jsonify(response_data)
 
 
 @app.route("/oauth/token/revoke", methods=["POST"])
@@ -2107,14 +2137,14 @@ def oauth_userinfo():
     response = {
         "sub": str(user.id)
     }
-    if "name" in scopes:
+    if "name" in scopes or "openid" in scopes or "profile" in scopes:
         response["name"] = user.full_name
-    if "dob" in scopes:
+    if "dob" in scopes or "openid" in scopes or "profile" in scopes:
         response["birthdate"] = user.dob.strftime("%Y-%m-%d")
-    if "email" in scopes:
+    if "email" in scopes or "openid" in scopes or "profile" in scopes:
         response["email"] = user.email
-        response["email_verified"] = True
-    if "profile_picture" in scopes:
+        response["email_verified"] = user.email_verified
+    if "profile_picture" in scopes or "openid" in scopes or "profile" in scopes:
         if user.profile_picture:
             response["picture"] = f"https://id.joshattic.us/static/uploads/{user.profile_picture}"
         else:

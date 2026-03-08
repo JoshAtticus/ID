@@ -11,3 +11,10 @@ package-lock.json
 
 # macOS
 .DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.github/COPILOT-INSTRUCTIONS.md
