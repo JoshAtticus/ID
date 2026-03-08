@@ -322,16 +322,6 @@ def calculate_security_score(user, sessions):
             'description': 'Your password is one of the most commonly used passwords. Change it immediately!'
         })
     
-    # Check for legal updates
-    if not user.has_acknowledged_legal_update:
-        score -= 2.0
-        reasons.append({
-            'reason': 'Legal documents have been updated',
-            'impact': '-2.0',
-            'action': 'review_legal',
-            'description': 'We have updated our Terms of Service and/or Privacy Policy. Please review them.'
-        })
-
     return max(0, round(score, 1)), reasons
 
 # Add this function after other utility functions
@@ -1037,7 +1027,7 @@ def get_recommendations():
 
     recommendations = []
     
-    if not user.has_accepted_legal:
+    if not user.has_acknowledged_legal_update:
         recommendations.append({
             'title': 'Review our updated terms',
             'description': 'We\'ve updated our Privacy Policy and Terms of Service. Please take a moment to review them.',
