@@ -15,6 +15,9 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import importlib.util
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
@@ -59,6 +62,40 @@ with app.app_context():
     run_migrations(app, db)
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+os.makedirs("instance", exist_ok=True)
+
+# Generate or load RSA key for RS256 signing
+jwt_key_path = "instance/jwt-rs256.pem"
+if not os.path.exists(jwt_key_path):
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+        backend=default_backend()
+    )
+    with open(jwt_key_path, "wb") as f:
+        f.write(private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ))
+else:
+    with open(jwt_key_path, "rb") as f:
+        private_key = serialization.load_pem_private_key(
+            f.read(),
+            password=None,
+            backend=default_backend()
+        )
+
+app.config["JWT_PRIVATE_KEY"] = private_key
+app.config["JWT_PUBLIC_KEY"] = private_key.public_key()
+app.config["JWT_KID"] = os.environ.get("JWT_KID", "jwt-rs256-key-1")
+
+def int_to_base64url(value):
+    value_hex = format(value, 'x')
+    if len(value_hex) % 2 == 1:
+        value_hex = '0' + value_hex
+    value_bytes = bytes.fromhex(value_hex)
+    return base64.urlsafe_b64encode(value_bytes).rstrip(b'=').decode('utf-8')
 
 @app.after_request
 def add_security_headers(response):
@@ -92,6 +129,7 @@ def openid_configuration():
         "authorization_endpoint": f"{base}/oauth/authorize",
         "token_endpoint": f"{base}/oauth/token",
         "userinfo_endpoint": f"{base}/oauth/userinfo",
+        "jwks_uri": f"{base}/oauth/jwks",
         "revocation_endpoint": f"{base}/oauth/token/revoke",
         "introspection_endpoint": f"{base}/oauth/token/introspect",
         "response_types_supported": ["code"],
@@ -108,6 +146,20 @@ def openid_configuration():
 @app.route("/.well-known/oauth-authorization-server", methods=["GET"])
 def oauth_metadata():
     return openid_configuration()
+
+@app.route("/oauth/jwks", methods=["GET"])
+def jwks():
+    numbers = app.config["JWT_PUBLIC_KEY"].public_numbers()
+    return jsonify({
+        "keys": [{
+            "kty": "RSA",
+            "alg": "RS256",
+            "use": "sig",
+            "kid": app.config["JWT_KID"],
+            "n": int_to_base64url(numbers.n),
+            "e": int_to_base64url(numbers.e)
+        }]
+    })
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2070,7 +2122,12 @@ def oauth_token():
             else:
                 id_token_payload["picture"] = f"{base_url}/static/uploads/default.png"
                 
-        id_token = jwt.encode(id_token_payload, app.config["SECRET_KEY"], algorithm="HS256")
+        id_token = jwt.encode(
+            id_token_payload, 
+            app.config["JWT_PRIVATE_KEY"], 
+            algorithm="RS256", 
+            headers={"kid": app.config["JWT_KID"]}
+        )
         response_data["id_token"] = id_token
 
     return jsonify(response_data)

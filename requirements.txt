@@ -7,4 +7,5 @@ gunicorn
 itsdangerous
 Jinja2
 PyJWT
-Werkzeug
+Werkzeugcryptography
+cryptography
