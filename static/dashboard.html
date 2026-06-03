@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@200..900&display=swap" rel="stylesheet">
     <script src="/static/security.js"></script>
     <script defer data-domain="id.joshattic.us" src="https://plausible.joshattic.us/js/script.file-downloads.hash.outbound-links.pageview-props.tagged-events.js"></script>
     <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
@@ -741,12 +742,16 @@
         @keyframes spin {
             to { transform: translate(-50%, -50%) rotate(360deg); }
         }
+
+        .joshatticus-wordmark {
+            font-family: 'Unbounded';
+        }
     </style>
 </head>
 
 <body>
     <div class="header">
-        <h1>Dashboard</h1>
+        <h1><span class="joshatticus-wordmark">JoshAtticusID</span></h1>
         <div style="display: flex; gap: 12px;">
             <button class="logout-button" id="logoutButton">Logout</button>
         </div>
@@ -876,7 +881,7 @@
     </div>
 
     <footer class="footer">
-        &copy; 2025 JoshAtticus | <a href="/privacy" style="color: var(--secondary-color);">Privacy Policy</a> | <a href="/terms" style="color: var(--secondary-color);">Terms of Service</a> | <a href="/developer" style="color: var(--secondary-color);">Developer Dashboard</a> <a href="/admin" id="adminPanelLink" style="color: var(--secondary-color); display: none;">Admin Panel</a></p>
+        &copy; 2026 JoshAtticus | <a href="/privacy" style="color: var(--secondary-color);">Privacy Policy</a> | <a href="/terms" style="color: var(--secondary-color);">Terms of Service</a> | <a href="/developer" style="color: var(--secondary-color);">Developer Dashboard</a> <a href="/admin" id="adminPanelLink" style="color: var(--secondary-color); display: none;">Admin Panel</a></p>
     </footer>
 
     <script>
