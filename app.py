@@ -547,7 +547,7 @@ def send_password_reset_email(email, code):
     text_content = render_template('emails/password_reset.txt', code=code)
     html_content = render_template('emails/password_reset.html', code=code)
     
-    send_email(email, "Password Reset Code - JoshAtticusID", text_content, html_content)
+    return send_email(email, "Password Reset Code - JoshAtticusID", text_content, html_content)
 
 
 def generate_verification_code():

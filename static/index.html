@@ -195,6 +195,47 @@
             color: var(--danger-color);
         }
 
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        button:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .forgot-step {
+            display: none;
+            animation: stepFadeIn 0.5s;
+        }
+
+        @keyframes stepFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .forgot-step.active {
+            display: block;
+        }
+
         .error-container {
             display: none;
             flex-direction: column;
@@ -333,9 +374,12 @@
                     <input type="password" id="password" name="password" required placeholder=" ">
                     <label for="password">Password</label>
                 </div>
-                <div style="display: flex; align-items: center; margin-top: 12px;">
-                    <input type="checkbox" id="rememberMe" style="width: auto; margin-right: 8px;">
-                    <label for="rememberMe" style="position: static; transform: none; pointer-events: auto; color: var(--text-color); font-size: 14px;">Remember me</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+                    <div style="display: flex; align-items: center;">
+                        <input type="checkbox" id="rememberMe" style="width: auto; margin-right: 8px;">
+                        <label for="rememberMe" style="position: static; transform: none; pointer-events: auto; color: var(--text-color); font-size: 14px;">Remember me</label>
+                    </div>
+                    <a href="#" id="forgotPasswordLink" style="font-size: 14px;">Forgot password?</a>
                 </div>
                 <div class="error-text" id="login-error"></div>
             </div>
@@ -347,6 +391,60 @@
                 <button type="submit" id="signInButton" style="display: none;">Sign in</button>
             </div>
         </form>
+
+        <!-- Forgot Password Section -->
+        <div id="forgotPasswordSection" style="display: none;">
+            <form id="forgotPasswordForm">
+                <!-- Step 1: Request code -->
+                <div id="forgotRequestStep" class="forgot-step active">
+                    <p style="color: var(--secondary-color); font-size: 14px; margin-bottom: 24px; text-align: left; line-height: 1.5;">
+                        Enter your email address and we'll send you a 6-digit code to reset your password.
+                    </p>
+                    <div class="input-group">
+                        <input type="email" id="forgotEmail" name="email" required placeholder=" " autocapitalize="none">
+                        <label for="forgotEmail">Email</label>
+                    </div>
+                    <div class="error-text" id="forgot-email-error"></div>
+                </div>
+
+                <!-- Step 2: Verify code & enter new password -->
+                <div id="forgotVerifyStep" class="forgot-step">
+                    <p style="color: var(--secondary-color); font-size: 14px; margin-bottom: 24px; text-align: left; line-height: 1.5;">
+                        We've sent a 6-digit reset code to <span id="forgot-email-display" style="color: var(--primary-color); font-weight: 500;"></span>. Enter it below along with your new password.
+                    </p>
+                    <div class="input-group">
+                        <input type="text" id="forgotCode" name="code" required placeholder=" " maxlength="6" pattern="[0-9]{6}" autocomplete="off">
+                        <label for="forgotCode">Reset Code</label>
+                    </div>
+                    <div class="input-group" style="margin-top: 24px;">
+                        <input type="password" id="forgotNewPassword" name="new_password" required placeholder=" ">
+                        <label for="forgotNewPassword">New Password</label>
+                    </div>
+                    <div class="input-group" style="margin-top: 24px;">
+                        <input type="password" id="forgotConfirmPassword" name="confirm_password" required placeholder=" ">
+                        <label for="forgotConfirmPassword">Confirm New Password</label>
+                    </div>
+                    <div class="error-text" id="forgot-verify-error"></div>
+                </div>
+
+                <!-- Step 3: Success -->
+                <div id="forgotSuccessStep" class="forgot-step">
+                    <p style="color: #81c995; font-size: 16px; margin-bottom: 12px; font-weight: 500;">
+                        ✓ Password reset successfully!
+                    </p>
+                    <p style="color: var(--secondary-color); font-size: 14px; margin-bottom: 24px; line-height: 1.5;">
+                        You can now sign in using your new password.
+                    </p>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px;">
+                    <a href="#" id="forgotCancelLink">Back to sign in</a>
+                    <button type="button" id="forgotSendCodeButton">Send Code</button>
+                    <button type="submit" id="forgotResetButton" style="display: none;">Reset Password</button>
+                    <button type="button" id="forgotDoneButton" style="display: none;">Sign In</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div class="error-container" id="errorContainer">
@@ -537,6 +635,190 @@
                 }
             } catch (error) {
                 showSystemError();
+            }
+        });
+
+        // ── Forgot Password Flow ──────────────────────────────────────
+
+        // Helper to toggle between login and forgot-password views
+        function showForgotPasswordFlow(emailPrefill) {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('forgotPasswordSection').style.display = 'block';
+            document.querySelector('h2').innerHTML = 'Reset your password';
+            document.getElementById('subtitle').textContent = '';
+
+            // Pre-fill email from login step if available
+            if (emailPrefill) {
+                document.getElementById('forgotEmail').value = emailPrefill;
+            }
+        }
+
+        function showLoginFlow() {
+            document.getElementById('forgotPasswordSection').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+            document.querySelector('h2').innerHTML = 'Sign in to your <span class="joshatticus-wordmark">JoshAtticusID</span>';
+            document.getElementById('subtitle').textContent = 'Your one ID for everything JoshAtticus & more';
+
+            // Reset all forgot-password steps back to initial state
+            document.getElementById('forgotRequestStep').classList.remove('active');
+            document.getElementById('forgotVerifyStep').classList.remove('active');
+            document.getElementById('forgotSuccessStep').classList.remove('active');
+            document.getElementById('forgotRequestStep').classList.add('active');
+
+            document.getElementById('forgotSendCodeButton').style.display = '';
+            document.getElementById('forgotResetButton').style.display = 'none';
+            document.getElementById('forgotDoneButton').style.display = 'none';
+
+            // Clear fields and errors
+            document.getElementById('forgotEmail').value = '';
+            document.getElementById('forgotCode').value = '';
+            document.getElementById('forgotNewPassword').value = '';
+            document.getElementById('forgotConfirmPassword').value = '';
+            document.querySelectorAll('#forgotPasswordForm .error-text').forEach(el => {
+                el.textContent = '';
+                el.style.display = 'none';
+            });
+        }
+
+        // "Forgot password?" link clicked
+        document.getElementById('forgotPasswordLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            const emailVal = document.getElementById('email').value;
+            showForgotPasswordFlow(emailVal);
+            document.getElementById('forgotEmail').focus();
+        });
+
+        // "Back to sign in" link clicked
+        document.getElementById('forgotCancelLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            showLoginFlow();
+        });
+
+        // "Send Code" button
+        document.getElementById('forgotSendCodeButton').addEventListener('click', async function() {
+            const email = document.getElementById('forgotEmail').value.trim();
+            const emailError = document.getElementById('forgot-email-error');
+            emailError.style.display = 'none';
+            emailError.textContent = '';
+
+            if (!email || !email.includes('@')) {
+                emailError.textContent = 'Please enter a valid email address';
+                emailError.style.display = 'block';
+                return;
+            }
+
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = 'Sending<span class="spinner"></span>';
+
+            try {
+                const response = await fetch('/account/password-reset/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Move to step 2
+                    document.getElementById('forgot-email-display').textContent = email;
+                    document.getElementById('forgotRequestStep').classList.remove('active');
+                    document.getElementById('forgotVerifyStep').classList.add('active');
+                    document.getElementById('forgotSendCodeButton').style.display = 'none';
+                    document.getElementById('forgotResetButton').style.display = '';
+                    document.getElementById('forgotCode').focus();
+                } else {
+                    emailError.textContent = data.message || 'Failed to send reset code. Please try again.';
+                    emailError.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Send Code';
+                }
+            } catch (err) {
+                emailError.textContent = 'A network error occurred. Please try again.';
+                emailError.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Send Code';
+            }
+        });
+
+        // "Reset Password" form submit
+        document.getElementById('forgotPasswordForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const email = document.getElementById('forgotEmail').value.trim();
+            const code = document.getElementById('forgotCode').value.trim();
+            const newPassword = document.getElementById('forgotNewPassword').value;
+            const confirmPassword = document.getElementById('forgotConfirmPassword').value;
+            const verifyError = document.getElementById('forgot-verify-error');
+
+            verifyError.style.display = 'none';
+            verifyError.textContent = '';
+
+            if (code.length !== 6 || !/^\d{6}$/.test(code)) {
+                verifyError.textContent = 'Please enter a valid 6-digit code.';
+                verifyError.style.display = 'block';
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                verifyError.textContent = 'Passwords do not match.';
+                verifyError.style.display = 'block';
+                return;
+            }
+
+            if (newPassword.length < 8) {
+                verifyError.textContent = 'Password must be at least 8 characters.';
+                verifyError.style.display = 'block';
+                return;
+            }
+
+            const btn = document.getElementById('forgotResetButton');
+            btn.disabled = true;
+            btn.innerHTML = 'Resetting<span class="spinner"></span>';
+
+            try {
+                const response = await fetch('/account/password-reset/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code, new_password: newPassword })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Step 3 – success
+                    document.getElementById('forgotVerifyStep').classList.remove('active');
+                    document.getElementById('forgotSuccessStep').classList.add('active');
+                    document.getElementById('forgotResetButton').style.display = 'none';
+                    document.getElementById('forgotDoneButton').style.display = '';
+                    document.getElementById('forgotCancelLink').style.display = 'none';
+                } else {
+                    verifyError.textContent = data.message || 'Failed to reset password. Check your code and try again.';
+                    verifyError.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Reset Password';
+                }
+            } catch (err) {
+                verifyError.textContent = 'A network error occurred. Please try again.';
+                verifyError.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Reset Password';
+            }
+        });
+
+        // "Sign In" button on success screen
+        document.getElementById('forgotDoneButton').addEventListener('click', function() {
+            // Pre-fill email in login form and jump to password step
+            const email = document.getElementById('forgotEmail').value.trim();
+            showLoginFlow();
+            if (email) {
+                document.getElementById('email').value = email;
+                document.getElementById('emailStep').style.display = 'none';
+                document.getElementById('passwordStep').style.display = 'block';
+                document.getElementById('nextButton').style.display = 'none';
+                document.getElementById('signInButton').style.display = 'block';
+                document.getElementById('password').focus();
             }
         });
     </script>
