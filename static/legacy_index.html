@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - JoshAtticusID</title>
+    <style type="text/css">
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 40px auto;
+            background-color: #1e1e1e;
+            border: 1px solid #333333;
+            padding: 30px;
+            border-radius: 8px;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin-top: 0;
+            color: #ffffff;
+            text-align: center;
+            border-bottom: 1px solid #333333;
+            padding-bottom: 15px;
+        }
+
+        .brand {
+            color: #8ab4f8;
+            font-weight: bold;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #bbbbbb;
+        }
+
+        input[type="email"],
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 11px;
+            background-color: #2a2a2a;
+            border: 1px solid #555555;
+            color: #ffffff;
+            font-size: 14px;
+            box-sizing: border-box;
+            border-radius: 4px;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 12px;
+            background-color: #8ab4f8;
+            color: #121212;
+            border: none;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .error-message {
+            background-color: #5c1d1d;
+            color: #ff9999;
+            border: 1px solid #993333;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .info-message {
+            background-color: #1a385c;
+            color: #8ab4f8;
+            border: 1px solid #2a588c;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .footer-text {
+            font-size: 11px;
+            color: #777777;
+            text-align: center;
+            margin-top: 25px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1><span class="brand">JoshAtticusID</span></h1>
+
+        <!--ERROR_BOX-->
+
+        <!--INFO_BOX-->
+
+        <form method="POST" action="/account/legacy-login">
+            <!--NEXT_FIELD-->
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" required placeholder="name@example.com"
+                    value="<!--EMAIL_VAL-->">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="Enter password">
+            </div>
+
+            <button type="submit" class="btn-submit">Sign In</button>
+        </form>
+
+        <div class="footer-text">
+            We've detected that you're using a legacy device, so you're using our legacy sign in experience. If you've
+            forgotten your password or you don't have an account yet, you'll need to reset it/create one on a modern
+            device.
+        </div>
+    </div>
+</body>
+
+</html>

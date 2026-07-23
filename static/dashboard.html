@@ -746,6 +746,26 @@
         .joshatticus-wordmark {
             font-family: 'Unbounded';
         }
+
+        .switch input:checked + .slider {
+            background-color: var(--primary-color);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        .switch input:checked + .slider:before {
+            transform: translateX(24px);
+        }
     </style>
 </head>
 
@@ -830,6 +850,20 @@
                     </div>
                     <div id="scoreReasons" class="score-reasons">
                         <!-- Score reasons will be populated here -->
+                    </div>
+                </div>
+                <div class="security-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="margin: 0 0 6px 0;">Legacy Device Sign-in</h3>
+                            <p style="margin: 0; color: var(--secondary-color); font-size: 14px;">
+                                Allow signing into applications from older browsers and legacy devices (IE11, older Chrome/Firefox/Safari/EdgeHTML).
+                            </p>
+                        </div>
+                        <label class="switch" style="position: relative; display: inline-block; width: 50px; height: 26px; flex-shrink: 0; margin-left: 16px;">
+                            <input type="checkbox" id="allowLegacySigninToggle" onchange="toggleLegacySigninSetting(this.checked)" style="opacity: 0; width: 0; height: 0;">
+                            <span class="slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #5f6368; transition: .4s; border-radius: 26px;"></span>
+                        </label>
                     </div>
                 </div>
                 <div class="security-section">
@@ -1337,8 +1371,39 @@
                 renderSecurityScore(data); // Add this line
                 renderActiveSessions(data.sessions);
                 renderLoginHistory(data.loginHistory);
+
+                const toggleEl = document.getElementById('allowLegacySigninToggle');
+                if (toggleEl && data.allowLegacySignin !== undefined) {
+                    toggleEl.checked = data.allowLegacySignin !== false;
+                }
             } catch (error) {
                 console.error('Error fetching security data:', error);
+            }
+        }
+
+        async function toggleLegacySigninSetting(enabled) {
+            try {
+                const response = await fetch('/account/security/toggle-legacy-signin', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ allow_legacy_signin: enabled })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update legacy sign-in setting');
+                }
+
+                showNotification(
+                    'Security Settings Updated',
+                    enabled ? 'Legacy device sign-ins are now ENABLED.' : 'Legacy device sign-ins are now DISABLED.'
+                );
+            } catch (error) {
+                console.error('Error toggling legacy signin:', error);
+                document.getElementById('allowLegacySigninToggle').checked = !enabled;
+                showNotification('Error', 'Could not update legacy sign-in setting.');
             }
         }
 

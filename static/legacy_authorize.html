@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorize Application - JoshAtticusID</title>
+    <style type="text/css">
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 450px;
+            margin: 20px auto;
+            background-color: #1e1e1e;
+            border: 1px solid #333333;
+            padding: 25px;
+            border-radius: 8px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin-top: 0;
+            color: #ffffff;
+            border-bottom: 1px solid #333333;
+            padding-bottom: 10px;
+        }
+
+        .brand {
+            color: #8ab4f8;
+            font-weight: bold;
+        }
+
+        .user-signed-in {
+            font-size: 13px;
+            color: #8ab4f8;
+            margin-bottom: 15px;
+            background-color: #1a2733;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #23384c;
+        }
+
+        .app-box {
+            background-color: #282828;
+            border: 1px solid #444444;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .app-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffffff;
+        }
+
+        .badge {
+            background-color: #1e8e3e;
+            color: #ffffff;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+
+        .scope-list {
+            margin: 15px 0;
+            padding-left: 20px;
+        }
+
+        .scope-item {
+            margin-bottom: 6px;
+            color: #cccccc;
+            font-size: 13px;
+        }
+
+        .button-group {
+            margin-top: 20px;
+            text-align: right;
+        }
+
+        .btn-authorize {
+            padding: 10px 24px;
+            background-color: #8ab4f8;
+            color: #121212;
+            border: none;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+
+        .btn-cancel {
+            padding: 10px 20px;
+            background-color: transparent;
+            color: #8ab4f8;
+            border: 1px solid #8ab4f8;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .error-message {
+            background-color: #5c1d1d;
+            color: #ff9999;
+            border: 1px solid #993333;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .footer-text {
+            font-size: 11px;
+            color: #777777;
+            text-align: center;
+            margin-top: 25px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Authorize Application</h1>
+
+        <!--USER_INFO_BAR-->
+
+        <!--ERROR_BOX-->
+
+        <div class="app-box">
+            <div class="app-title">
+                <!--APP_NAME-->
+                <!--VERIFIED_BADGE-->
+            </div>
+            <p style="font-size: 13px; color: #aaaaaa; margin: 6px 0 0 0;">
+                is requesting access to your JoshAtticusID account.
+            </p>
+        </div>
+
+        <p style="font-size: 13px; color: #cccccc; margin-bottom: 5px;"><strong>This app will be able to:</strong></p>
+        <ul class="scope-list">
+            <!--SCOPES_LIST-->
+        </ul>
+
+        <form method="POST" action="/oauth/authorize">
+            <input type="hidden" name="client_id" value="<!--CLIENT_ID-->">
+            <input type="hidden" name="redirect_uri" value="<!--REDIRECT_URI-->">
+            <input type="hidden" name="scope" value="<!--SCOPE-->">
+            <input type="hidden" name="state" value="<!--STATE-->">
+            <input type="hidden" name="legacy" value="1">
+
+            <div class="button-group">
+                <a href="<!--CANCEL_URL-->" class="btn-cancel">Cancel</a>
+                <button type="submit" class="btn-authorize">Authorize</button>
+            </div>
+        </form>
+
+        <div class="footer-text">
+            We've detected that you're using a legacy device, so you're using our legacy sign in experience.
+        </div>
+    </div>
+</body>
+
+</html>

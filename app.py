@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
+import re
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta, timezone
 import uuid
@@ -170,6 +171,7 @@ class User(db.Model):
     profile_picture = db.Column(db.String(255))
     email_verified = db.Column(db.Boolean, default=False, nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    allow_legacy_signin = db.Column(db.Boolean, default=True, nullable=False)
     sessions = db.relationship("Session", backref="user", lazy=True)
     login_history = db.relationship("LoginHistory", backref="user", lazy=True)
     has_accepted_legal = db.Column(db.Boolean, default=False, nullable=False)
@@ -272,6 +274,110 @@ class OAuthCode(db.Model):
 
 
 # Add this utility function after the model definitions
+def is_legacy_browser(user_agent, query_legacy=False):
+    if query_legacy:
+        return True
+    if not user_agent:
+        return False
+        
+    ua = user_agent.lower()
+    
+    # 1. IE / Trident
+    if "msie" in ua or "trident/" in ua:
+        return True
+        
+    # 2. Legacy EdgeHTML (Edge/12-18). Modern Chromium Edge uses Edg/ or EdgA/
+    if "edge/" in ua and "edg/" not in ua and "edga/" not in ua and "edgios/" not in ua:
+        return True
+        
+    # 3. Older Chrome < 60
+    chrome_match = re.search(r'chrome/(\d+)', ua)
+    if chrome_match:
+        try:
+            version = int(chrome_match.group(1))
+            if version < 60:
+                return True
+        except ValueError:
+            pass
+            
+    # 4. Older Firefox < 60
+    firefox_match = re.search(r'firefox/(\d+)', ua)
+    if firefox_match:
+        try:
+            version = int(firefox_match.group(1))
+            if version < 60:
+                return True
+        except ValueError:
+            pass
+            
+    # 5. Older Safari < 11
+    if "safari" in ua and "chrome" not in ua and "android" not in ua:
+        safari_match = re.search(r'version/(\d+)', ua)
+        if safari_match:
+            try:
+                version = int(safari_match.group(1))
+                if version < 11:
+                    return True
+            except ValueError:
+                pass
+
+    # 6. Legacy Opera / Opera Mini / Pre-Blink
+    if "opera" in ua or "opios" in ua or "opera mini" in ua:
+        opera_match = re.search(r'(?:opera|opr)/(\d+)', ua)
+        if opera_match:
+            try:
+                version = int(opera_match.group(1))
+                if version < 45:
+                    return True
+            except ValueError:
+                pass
+                
+    return False
+
+def render_legacy_index_page(error=None, info=None, next_url="", email=""):
+    filepath = os.path.join(app.root_path, "static", "legacy_index.html")
+    with open(filepath, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    error_box = f'<div class="error-message"><strong>Error:</strong> {error}</div>' if error else ''
+    info_box = f'<div class="info-message">{info}</div>' if info else ''
+    next_field = f'<input type="hidden" name="next" value="{next_url}">' if next_url else ''
+
+    html = html.replace("<!--ERROR_BOX-->", error_box)
+    html = html.replace("<!--INFO_BOX-->", info_box)
+    html = html.replace("<!--NEXT_FIELD-->", next_field)
+    html = html.replace("<!--EMAIL_VAL-->", email or "")
+    return html
+
+def render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state, user=None, error=None):
+    filepath = os.path.join(app.root_path, "static", "legacy_authorize.html")
+    with open(filepath, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    app_name = oauth_app.name if oauth_app else "Unknown Application"
+    verified_badge = '<span class="badge">VERIFIED</span>' if (oauth_app and oauth_app.verified) else ''
+
+    requested_scopes = scope.split() if scope else []
+    scopes_html = ""
+    for s in requested_scopes:
+        desc = OAUTH_SCOPES.get(s, s)
+        scopes_html += f'<li class="scope-item">{desc}</li>\n'
+
+    user_bar = f'<div class="user-signed-in">Signed in as <strong>{user.email}</strong></div>' if user else ''
+    error_box = f'<div class="error-message"><strong>Error:</strong> {error}</div>' if error else ''
+
+    html = html.replace("<!--APP_NAME-->", app_name)
+    html = html.replace("<!--VERIFIED_BADGE-->", verified_badge)
+    html = html.replace("<!--SCOPES_LIST-->", scopes_html)
+    html = html.replace("<!--CLIENT_ID-->", client_id or "")
+    html = html.replace("<!--REDIRECT_URI-->", redirect_uri or "")
+    html = html.replace("<!--SCOPE-->", scope or "")
+    html = html.replace("<!--STATE-->", state or "")
+    html = html.replace("<!--CANCEL_URL-->", redirect_uri or "#")
+    html = html.replace("<!--USER_INFO_BAR-->", user_bar)
+    html = html.replace("<!--ERROR_BOX-->", error_box)
+    return html
+
 def update_session_activity(token):
     """Update last_active timestamp for the session associated with the token"""
     try:
@@ -1131,7 +1237,8 @@ def get_security_data():
             'loginHistory': login_history,
             'securityScore': security_score,
             'scoreReasons': score_reasons,
-            'recommendations': recommendations
+            'recommendations': recommendations,
+            'allowLegacySignin': getattr(user, 'allow_legacy_signin', True)
         })
     except jwt.ExpiredSignatureError:
         return jsonify({"message": "Token has expired"}), 401
@@ -1140,6 +1247,39 @@ def get_security_data():
     except Exception as e:
         print(f"Security data error: {str(e)}")
         return jsonify({"message": "Internal server error"}), 500
+
+
+@app.route("/account/security/toggle-legacy-signin", methods=["POST"])
+def toggle_legacy_signin():
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"message": "Token is missing"}), 401
+
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        user = User.query.get(data["user_id"])
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        req_json = request.get_json() or {}
+        if "allow_legacy_signin" in req_json:
+            user.allow_legacy_signin = bool(req_json["allow_legacy_signin"])
+        else:
+            user.allow_legacy_signin = not user.allow_legacy_signin
+
+        db.session.commit()
+        return jsonify({
+            "message": "Legacy sign-in setting updated",
+            "allow_legacy_signin": user.allow_legacy_signin
+        }), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid token"}), 401
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error toggling legacy signin: {str(e)}")
+        return jsonify({"message": "Error updating legacy signin setting"}), 500
 
 
 # Modify end_session route to record the action
@@ -1181,6 +1321,7 @@ def oauth_authorize():
         redirect_uri = request.args.get("redirect_uri")
         scope = request.args.get("scope", "")
         state = request.args.get("state")
+        legacy_override = request.args.get("legacy") == "1"
         
         if not state or len(state) < 8:
             return jsonify({
@@ -1230,16 +1371,45 @@ def oauth_authorize():
                 "error_description": f"Invalid scopes: {[s for s in requested_scopes if s not in OAUTH_SCOPES]}"
             }), 400
 
+        user_agent = request.headers.get("User-Agent", "")
+        if is_legacy_browser(user_agent, legacy_override):
+            token = request.cookies.get("session_token") or request.headers.get("Authorization")
+            user = None
+            if token:
+                try:
+                    data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+                    user = User.query.get(data.get("user_id"))
+                except Exception:
+                    user = None
+
+            if not user:
+                from urllib.parse import quote
+                current_url = request.url
+                return redirect(f"/?legacy=1&error=login_required&next={quote(current_url)}")
+
+            if not getattr(user, 'allow_legacy_signin', True):
+                return redirect("/?legacy=1&error=legacy_disabled")
+
+            return render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state, user=user)
+
         return send_from_directory("static", "authorize.html")
 
-    token = request.headers.get("Authorization") or request.form.get("token")
+    token = request.cookies.get("session_token") or request.headers.get("Authorization") or request.form.get("token")
     if not token:
+        if request.form.get("legacy") == "1" or is_legacy_browser(request.headers.get("User-Agent", "")):
+            return redirect("/?legacy=1&error=login_required")
         return jsonify({"error": "invalid_request", "error_description": "Token is missing"}), 401
+
     try:
         data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
         user = User.query.get(data["user_id"])
         if not user:
             return jsonify({"error": "invalid_request", "error_description": "User not found"}), 404
+
+        if not getattr(user, 'allow_legacy_signin', True):
+            if request.form.get("legacy") == "1" or is_legacy_browser(request.headers.get("User-Agent", "")):
+                return redirect("/?legacy=1&error=legacy_disabled")
+            return jsonify({"error": "access_denied", "error_description": "Legacy device sign-ins are disabled for this account."}), 403
         
         if request.is_json:
             client_id = request.json.get("client_id")
@@ -2128,8 +2298,67 @@ def update_profile():
 
 
 ### Static Routes ###
+@app.route("/account/legacy-login", methods=["POST"])
+def legacy_login():
+    email = request.form.get("email")
+    password = request.form.get("password")
+    next_url = request.form.get("next") or ""
+
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.check_password(password):
+        return render_legacy_index_page(error="Invalid email or password", next_url=next_url, email=email), 401
+
+    if not getattr(user, 'allow_legacy_signin', True):
+        return render_legacy_index_page(error="Legacy device sign-ins have been disabled for this account. Please log in using a modern device or enable legacy sign-ins in your security settings.", next_url=next_url, email=email), 403
+
+    current_time = datetime.now(timezone.utc)
+    expiration_delta = timedelta(days=30)
+    token = jwt.encode(
+        {"user_id": user.id, "exp": current_time + expiration_delta},
+        app.config["SECRET_KEY"],
+        algorithm="HS256",
+    )
+
+    session = Session(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        token=token,
+        device_name=request.headers.get("User-Agent", "Legacy Device"),
+        location="Unknown Location",
+        last_active=current_time,
+        created_at=current_time,
+    )
+    db.session.add(session)
+
+    login_record = LoginHistory(
+        user_id=user.id,
+        device_name=request.headers.get("User-Agent", "Legacy Device"),
+        location="Unknown Location",
+        timestamp=current_time,
+    )
+    db.session.add(login_record)
+    db.session.commit()
+
+    redirect_target = next_url if next_url else "/dashboard"
+    resp = redirect(redirect_target)
+    resp.set_cookie("session_token", token, httponly=True, max_age=86400 * 30, samesite="Lax")
+    return resp
+
+
 @app.route("/", methods=["GET"])
 def home():
+    user_agent = request.headers.get("User-Agent", "")
+    legacy_override = request.args.get("legacy") == "1"
+    if is_legacy_browser(user_agent, legacy_override):
+        error = request.args.get("error")
+        error_msg = None
+        if error == "legacy_disabled":
+            error_msg = "Legacy device sign-ins are disabled for this account."
+        elif error == "login_required":
+            error_msg = "Please sign into your JoshAtticusID account to continue."
+        next_url = request.args.get("next", "")
+        return render_legacy_index_page(error=error_msg, next_url=next_url)
+
     return send_from_directory("static", "index.html")
 
 
@@ -2449,6 +2678,15 @@ def developer_dashboard():
 
 @app.route("/authorize")
 def authorize_oauth_app():
+    user_agent = request.headers.get("User-Agent", "")
+    legacy_override = request.args.get("legacy") == "1"
+    if is_legacy_browser(user_agent, legacy_override):
+        client_id = request.args.get("client_id")
+        redirect_uri = request.args.get("redirect_uri")
+        scope = request.args.get("scope", "")
+        state = request.args.get("state")
+        oauth_app = OAuthApp.query.filter_by(client_id=client_id).first() if client_id else None
+        return render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state)
     return send_from_directory("static", "authorize.html")
 
 
@@ -2522,6 +2760,13 @@ def perform_migrations():
                     connection.execute(text("ALTER TABLE oauth_app ADD COLUMN banned BOOLEAN NOT NULL DEFAULT 0"))
                     print("Migration complete: oauth_app.banned added.")
 
+                # --- Migration 6: Add allow_legacy_signin to user ---
+                user_cols = connection.execute(text("PRAGMA table_info(user)")).all()
+                if not any(col[1] == 'allow_legacy_signin' for col in user_cols):
+                    print("Migrating database: Adding allow_legacy_signin column to user table...")
+                    connection.execute(text("ALTER TABLE user ADD COLUMN allow_legacy_signin BOOLEAN NOT NULL DEFAULT 1"))
+                    print("Migration complete: user.allow_legacy_signin added.")
+
         except Exception as e:
             print(f"Error during database migration: {str(e)}")
 
@@ -2529,9 +2774,9 @@ def perform_migrations():
 # Initialize database on app startup (works with both gunicorn and direct run)
 try:
     init_db()
-    print("✅ Database initialized successfully")
+    print("[OK] Database initialized successfully")
 except Exception as e:
-    print(f"⚠️  Database initialization warning: {str(e)}")
+    print(f"[WARNING] Database initialization warning: {str(e)}")
 
 
 if __name__ == "__main__":
