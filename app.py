@@ -2356,6 +2356,8 @@ def home():
             error_msg = "Legacy device sign-ins are disabled for this account."
         elif error == "login_required":
             error_msg = "Please sign into your JoshAtticusID account to continue."
+        elif error == "dashboard_legacy":
+            error_msg = "You need to use a modern device to manage your account"
         next_url = request.args.get("next", "")
         return render_legacy_index_page(error=error_msg, next_url=next_url)
 
@@ -2369,6 +2371,10 @@ def signup():
 
 @app.route("/dashboard")
 def dashboard():
+    user_agent = request.headers.get("User-Agent", "")
+    legacy_override = request.args.get("legacy") == "1"
+    if is_legacy_browser(user_agent, legacy_override):
+        return render_legacy_index_page(error="You need to use a modern device to manage your account")
     return send_from_directory("static", "dashboard.html")
 
 

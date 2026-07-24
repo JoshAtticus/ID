@@ -5,6 +5,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - JoshAtticusID</title>
+    <script>
+        (function () {
+            function isLegacyBrowser() {
+                var ua = navigator.userAgent || "";
+                if (window.location.search.indexOf("legacy=1") !== -1) return true;
+                if (ua.indexOf("MSIE ") !== -1 || ua.indexOf("Trident/") !== -1) return true;
+                if (ua.indexOf("Edge/") !== -1 && ua.indexOf("Edg/") === -1 && ua.indexOf("EdgA/") === -1 && ua.indexOf("EdgiOS/") === -1) return true;
+                var chromeMatch = ua.match(/Chrome\/(\d+)/i);
+                if (chromeMatch && parseInt(chromeMatch[1], 10) < 60) return true;
+                var ffMatch = ua.match(/Firefox\/(\d+)/i);
+                if (ffMatch && parseInt(ffMatch[1], 10) < 60) return true;
+                if (ua.indexOf("Safari") !== -1 && ua.indexOf("Chrome") === -1 && ua.indexOf("Android") === -1) {
+                    var safMatch = ua.match(/Version\/(\d+)/i);
+                    if (safMatch && parseInt(safMatch[1], 10) < 11) return true;
+                }
+                if (ua.indexOf("Opera") !== -1 || ua.indexOf("OPR") !== -1) {
+                    var opMatch = ua.match(/(?:Opera|OPR)\/(\d+)/i);
+                    if (opMatch && parseInt(opMatch[1], 10) < 45) return true;
+                }
+                return false;
+            }
+            if (isLegacyBrowser()) {
+                window.location.href = "/?legacy=1&error=dashboard_legacy";
+            }
+        })();
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.35/ua-parser.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,7 +38,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@200..900&display=swap" rel="stylesheet">
     <script src="/static/security.js"></script>
     <script defer data-domain="id.joshattic.us" src="https://plausible.joshattic.us/js/script.file-downloads.hash.outbound-links.pageview-props.tagged-events.js"></script>
-    <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
+    <script>window.plausible = window.plausible || function () { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
     <style>
         :root {
             --background-start-rgb: 10, 10, 10;
@@ -234,7 +260,9 @@
 
         .profile-picture-container:hover .profile-picture-button {
             opacity: 1;
-        }        .recommendation-card {
+        }
+
+        .recommendation-card {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
@@ -471,7 +499,7 @@
             visibility: visible;
             opacity: 1;
         }
-        
+
         .edit-profile-button {
             background: transparent;
             color: var(--primary-color);
@@ -484,7 +512,7 @@
             transition: all 0.3s ease;
             margin-top: 12px;
         }
-        
+
         .edit-profile-button:hover {
             background: var(--primary-color);
             color: var(--button-text-color);
@@ -740,14 +768,16 @@
         }
 
         @keyframes spin {
-            to { transform: translate(-50%, -50%) rotate(360deg); }
+            to {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
         }
 
         .joshatticus-wordmark {
             font-family: 'Unbounded';
         }
 
-        .switch input:checked + .slider {
+        .switch input:checked+.slider {
             background-color: var(--primary-color);
         }
 
@@ -763,7 +793,7 @@
             border-radius: 50%;
         }
 
-        .switch input:checked + .slider:before {
+        .switch input:checked+.slider:before {
             transform: translateX(24px);
         }
     </style>
@@ -803,12 +833,10 @@
 
             <div class="tab-content" id="personal-info">
                 <div class="profile-picture-container" id="profilePictureContainer">
-                    <img id="profilePicture" class="profile-picture" src="/static/uploads/default.png"
-                        alt="Profile Picture">
+                    <img id="profilePicture" class="profile-picture" src="/static/uploads/default.png" alt="Profile Picture">
                     <div class="upload-spinner"></div>
                     <input type="file" id="profilePictureUpload" class="profile-picture-upload" accept="image/*">
-                    <button class="profile-picture-button"
-                        onclick="document.getElementById('profilePictureUpload').click()">
+                    <button class="profile-picture-button" onclick="document.getElementById('profilePictureUpload').click()">
                         Change Picture
                     </button>
                 </div>
@@ -857,7 +885,7 @@
                         <div>
                             <h3 style="margin: 0 0 6px 0;">Legacy Device Sign-in</h3>
                             <p style="margin: 0; color: var(--secondary-color); font-size: 14px;">
-                                Allow signing into applications from older browsers and legacy devices (IE11, older Chrome/Firefox/Safari/EdgeHTML).
+                                Allow signing into applications from older browsers and legacy devices.
                             </p>
                         </div>
                         <label class="switch" style="position: relative; display: inline-block; width: 50px; height: 26px; flex-shrink: 0; margin-left: 16px;">
@@ -925,14 +953,14 @@
             const modal = document.getElementById('flexModal');
             document.getElementById('flexModalTitle').textContent = title;
             document.getElementById('flexModalBody').innerHTML = body;
-            
+
             const buttonContainer = document.getElementById('flexModalButtons');
             buttonContainer.innerHTML = '';
-            
+
             buttons.forEach(btn => {
                 const button = document.createElement('button');
                 button.textContent = btn.text;
-                
+
                 // Apply button styling based on class
                 if (btn.class === 'danger-button') {
                     button.style.cssText = 'flex: 1; background: var(--danger-color); color: var(--button-text-color); padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;';
@@ -941,14 +969,14 @@
                 } else {
                     button.style.cssText = 'flex: 1; background: var(--primary-color); color: var(--button-text-color); padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;';
                 }
-                
+
                 button.onclick = () => {
                     modal.style.display = 'none';
                     if (btn.action) btn.action();
                 };
                 buttonContainer.appendChild(button);
             });
-            
+
             modal.style.display = 'flex';
         }
 
@@ -1230,24 +1258,24 @@
                 recommendationsList.style.display = 'block';
                 noRecommendations.style.display = 'none';
                 recommendationsList.innerHTML = '';
-                
+
                 data.forEach(rec => {
                     const card = document.createElement('div');
                     card.className = 'recommendation-card';
-                    
+
                     const info = document.createElement('div');
                     info.className = 'recommendation-info';
-                    
+
                     const title = document.createElement('h4');
                     title.textContent = rec.title || '';
                     info.appendChild(title);
-                    
+
                     const desc = document.createElement('p');
                     desc.textContent = rec.description || '';
                     info.appendChild(desc);
-                    
+
                     card.appendChild(info);
-                    
+
                     if (rec.action === 'redirect' && rec.action_url) {
                         const validUrl = validateRedirect(rec.action_url);
                         if (validUrl) {
@@ -1269,7 +1297,7 @@
                         });
                         card.appendChild(btn);
                     }
-                    
+
                     recommendationsList.appendChild(card);
                 });
             } catch (error) {
@@ -1347,7 +1375,7 @@
                         'Authorization': token
                     }
                 });
-                
+
                 const data = await response.json();
                 if (data.is_admin) {
                     document.getElementById('adminPanelLink').style.display = 'block';
@@ -1455,30 +1483,30 @@
                 data.apps.forEach(app => {
                     const card = document.createElement('div');
                     card.className = 'app-card';
-                    
+
                     const info = document.createElement('div');
                     info.className = 'app-info';
-                    
+
                     const nameContainer = document.createElement('div');
                     nameContainer.className = 'app-name-container';
-                    
+
                     const h4 = document.createElement('h4');
                     h4.textContent = app.name || '';
-                    
+
                     if (app.verified) {
                         const badge = document.createElement('span');
                         badge.className = 'verified-badge';
                         badge.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`;
                         h4.appendChild(badge);
                     }
-                    
+
                     nameContainer.appendChild(h4);
                     info.appendChild(nameContainer);
-                    
+
                     const lastUsed = document.createElement('p');
                     lastUsed.textContent = `Last used: ${app.last_used ? formatDate(app.last_used).relative : 'Never'}`;
                     info.appendChild(lastUsed);
-                    
+
                     const scopeTags = document.createElement('div');
                     scopeTags.className = 'scope-tags';
                     app.scopes.forEach(scope => {
@@ -1488,12 +1516,12 @@
                         scopeTags.appendChild(tag);
                     });
                     info.appendChild(scopeTags);
-                    
+
                     card.appendChild(info);
-                    
+
                     const actions = document.createElement('div');
                     actions.className = 'app-actions';
-                    
+
                     if (app.website) {
                         const sanitizedUrl = sanitizeUrl(app.website);
                         if (sanitizedUrl) {
@@ -1506,13 +1534,13 @@
                             actions.appendChild(link);
                         }
                     }
-                    
+
                     const revokeBtn = document.createElement('button');
                     revokeBtn.className = 'revoke-button';
                     revokeBtn.textContent = 'Revoke Access';
                     revokeBtn.addEventListener('click', () => revokeApp(app.id));
                     actions.appendChild(revokeBtn);
-                    
+
                     card.appendChild(actions);
                     appsList.appendChild(card);
                 });
@@ -1529,7 +1557,7 @@
                     {
                         text: 'Cancel',
                         class: 'secondary-button',
-                        action: () => {}
+                        action: () => { }
                     },
                     {
                         text: 'Revoke Access',
@@ -1563,7 +1591,7 @@
 
         // Add event listener for apps tab
         document.querySelector('[data-tab="apps"]').addEventListener('click', loadAuthorizedApps);
-        
+
         function editName() {
             const currentName = document.getElementById('fullName').textContent;
             showInputModal('Edit Name', currentName, (newName) => {
@@ -1572,7 +1600,7 @@
                 }
             });
         }
-        
+
         function editDob() {
             const currentDob = document.getElementById('dob').textContent;
             showInputModal('Edit Date of Birth (YYYY-MM-DD)', currentDob, (newDob) => {
@@ -1585,7 +1613,7 @@
                 }
             });
         }
-        
+
         async function updateProfile(updates) {
             try {
                 const response = await fetch('/account/update-profile', {
@@ -1596,7 +1624,7 @@
                     },
                     body: JSON.stringify(updates)
                 });
-                
+
                 const data = await response.json();
                 if (response.ok) {
                     showNotification('Success', 'Profile updated successfully');
