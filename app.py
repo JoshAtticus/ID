@@ -378,6 +378,14 @@ def render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, stat
     html = html.replace("<!--ERROR_BOX-->", error_box)
     return html
 
+def decode_session_token(token):
+    """Decode a login JWT and require a matching active Session row; raises jwt.InvalidTokenError if revoked."""
+    data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+    session = Session.query.filter_by(token=token, user_id=data.get("user_id")).first()
+    if not session:
+        raise jwt.InvalidTokenError("Session has been revoked")
+    return data
+
 def update_session_activity(token):
     """Update last_active timestamp for the session associated with the token"""
     try:
@@ -756,14 +764,27 @@ def create_account():
         send_welcome_email(new_user)
         
         # Auto-login: Generate JWT token for the new user
+        current_time = datetime.now(timezone.utc)
+        session_id = str(uuid.uuid4())
         token = jwt.encode(
             {
                 "user_id": new_user.id,
-                "exp": datetime.now(timezone.utc) + timedelta(hours=2)
+                "exp": current_time + timedelta(hours=2),
+                "jti": session_id
             },
             app.config["SECRET_KEY"],
             algorithm="HS256"
         )
+        db.session.add(Session(
+            id=session_id,
+            user_id=new_user.id,
+            token=token,
+            device_name=request.headers.get("User-Agent", "Unknown Device"),
+            location="Unknown Location",
+            last_active=current_time,
+            created_at=current_time,
+        ))
+        db.session.commit()
         
         return jsonify({
             "message": "Account created successfully",
@@ -854,16 +875,17 @@ def login():
         
         # Default to 24 hours, extend to 30 days if remember_me is True
         expiration_delta = timedelta(days=30) if remember_me else timedelta(hours=24)
+        session_id = str(uuid.uuid4())
 
         token = jwt.encode(
-            {"user_id": user.id, "exp": current_time + expiration_delta},
+            {"user_id": user.id, "exp": current_time + expiration_delta, "jti": session_id},
             app.config["SECRET_KEY"],
             algorithm="HS256",
         )
 
         # Create new session with explicit timestamp
         session = Session(
-            id=str(uuid.uuid4()),
+            id=session_id,
             user_id=user.id,
             token=token,
             device_name=request.headers.get("User-Agent", "Unknown Device"),
@@ -1032,7 +1054,7 @@ def check_user():
 def verify():
     token = request.get_json().get("token")
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         update_session_activity(token)  # Add this line
         return jsonify({"user_id": data["user_id"]})
     except jwt.ExpiredSignatureError:
@@ -1048,7 +1070,7 @@ def get_user_details():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         update_session_activity(token)  # Add this line
         user = User.query.get(data["user_id"])
 
@@ -1080,7 +1102,7 @@ def upload_profile_picture():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
 
         if "file" not in request.files:
@@ -1187,7 +1209,7 @@ def get_security_data():
         update_session_activity(token)
 
         # Verify token
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
 
         if not user:
@@ -1256,7 +1278,7 @@ def toggle_legacy_signin():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         if not user:
             return jsonify({"message": "User not found"}), 404
@@ -1290,7 +1312,7 @@ def end_session():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         session_id = request.json.get("sessionId")
 
@@ -1377,7 +1399,7 @@ def oauth_authorize():
             user = None
             if token:
                 try:
-                    data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+                    data = decode_session_token(token)
                     user = User.query.get(data.get("user_id"))
                 except Exception:
                     user = None
@@ -1401,7 +1423,7 @@ def oauth_authorize():
         return jsonify({"error": "invalid_request", "error_description": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         if not user:
             return jsonify({"error": "invalid_request", "error_description": "User not found"}), 404
@@ -1485,7 +1507,7 @@ def check_authorization():
         return jsonify({"error": "missing_token"}), 401
         
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user_id = data["user_id"]
     except:
         return jsonify({"error": "invalid_token"}), 401
@@ -1547,7 +1569,7 @@ def oauth_approve():
 
     try:
         # Verify user token
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user:
@@ -1838,7 +1860,7 @@ def get_authorized_apps():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
 
         if not user:
@@ -1884,7 +1906,7 @@ def revoke_app():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         auth_id = request.json.get("app_id")  # This is actually the authorization ID
 
@@ -1920,7 +1942,7 @@ def get_developer_apps():
         return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        payload = decode_session_token(token)
         user_id = payload["user_id"]
         update_session_activity(token)
         
@@ -1954,6 +1976,8 @@ def get_developer_apps():
             } for app in apps]
         })
 
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return jsonify({"message": "Invalid or expired token"}), 401
     except Exception as e:
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
@@ -1965,7 +1989,7 @@ def create_developer_app():
         return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        payload = decode_session_token(token)
         user_id = payload["user_id"]
         update_session_activity(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -2041,7 +2065,7 @@ def update_developer_app(app_id):
         return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        payload = decode_session_token(token)
         user_id = payload["user_id"]
         update_session_activity(token)
         
@@ -2095,7 +2119,7 @@ def regenerate_client_secret(app_id):
         return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        payload = decode_session_token(token)
         user_id = payload["user_id"]
         update_session_activity(token)
         
@@ -2136,7 +2160,7 @@ def delete_developer_app(app_id):
         return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        payload = decode_session_token(token)
         user_id = payload["user_id"]
         update_session_activity(token)
         
@@ -2178,7 +2202,7 @@ def check_password():
         return jsonify({'message': 'Token is missing'}), 401
 
     try:
-        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        data = decode_session_token(token)
         password = request.json.get('password')
         
         if not password:
@@ -2203,7 +2227,7 @@ def change_password():
         return jsonify({'message': 'Token is missing'}), 401
 
     try:
-        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        data = decode_session_token(token)
         user = User.query.get(data['user_id'])
         
         old_password = request.json.get('old_password')
@@ -2220,6 +2244,7 @@ def change_password():
             return jsonify({'message': msg}), 400
             
         user.set_password(new_password)
+        Session.query.filter(Session.user_id == user.id, Session.token != token).delete(synchronize_session=False)
         db.session.commit()
         
         return jsonify({'message': 'Password updated successfully'})
@@ -2258,7 +2283,7 @@ def update_profile():
         return jsonify({'message': 'Token is missing'}), 401
 
     try:
-        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        data = decode_session_token(token)
         user = User.query.get(data['user_id'])
         
         if not user:
@@ -2313,14 +2338,15 @@ def legacy_login():
 
     current_time = datetime.now(timezone.utc)
     expiration_delta = timedelta(days=30)
+    session_id = str(uuid.uuid4())
     token = jwt.encode(
-        {"user_id": user.id, "exp": current_time + expiration_delta},
+        {"user_id": user.id, "exp": current_time + expiration_delta, "jti": session_id},
         app.config["SECRET_KEY"],
         algorithm="HS256",
     )
 
     session = Session(
-        id=str(uuid.uuid4()),
+        id=session_id,
         user_id=user.id,
         token=token,
         device_name=request.headers.get("User-Agent", "Legacy Device"),
@@ -2392,7 +2418,7 @@ def admin_list_all_apps():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2449,7 +2475,7 @@ def admin_verify_app(app_id):
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2482,7 +2508,7 @@ def admin_unverify_app(app_id):
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2519,7 +2545,7 @@ def admin_ban_app(app_id):
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2562,7 +2588,7 @@ def admin_unban_app(app_id):
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2593,7 +2619,7 @@ def admin_edit_app(app_id):
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2629,7 +2655,7 @@ def admin_send_legal_updates():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2669,7 +2695,7 @@ def check_is_admin():
         return jsonify({"is_admin": False}), 200
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         return jsonify({"is_admin": user.is_admin if user else False}), 200
