@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 import uuid
 import pathlib
 import secrets
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 from urllib.parse import urlparse
 import base64
 import smtplib
@@ -708,6 +708,14 @@ def generate_verification_code():
     return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
 
 
+def get_pending_code_record(model, email, pending_filter):
+    """Return the newest pending code row for ``email``, deleting older duplicates."""
+    records = model.query.filter_by(email=email, **pending_filter).order_by(model.id.desc()).all()
+    for duplicate in records[1:]:
+        db.session.delete(duplicate)
+    return records[0] if records else None
+
+
 def verify_one_time_code(model, email, code, pending_filter):
     """Check a code for the pending record of ``email``.
 
@@ -717,7 +725,7 @@ def verify_one_time_code(model, email, code, pending_filter):
     the reservation is released only when the guess is correct.
     """
     max_attempts = app.config['MAX_CODE_ATTEMPTS']
-    record = model.query.filter_by(email=email, **pending_filter).order_by(model.id.desc()).first()
+    record = get_pending_code_record(model, email, pending_filter)
     if not record:
         return None, "invalid"
     if datetime.now(timezone.utc) > record.expires_at.replace(tzinfo=timezone.utc):
@@ -877,7 +885,7 @@ def send_verification():
     code = generate_verification_code()
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
 
-    existing = EmailVerification.query.filter_by(email=email, verified=False).first()
+    existing = get_pending_code_record(EmailVerification, email, {"verified": False})
     if existing:
         existing.code = code
         existing.expires_at = expires_at
@@ -1001,7 +1009,7 @@ def request_password_reset():
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
 
     # Check for existing unused reset request
-    existing = PasswordReset.query.filter_by(email=email, used=False).first()
+    existing = get_pending_code_record(PasswordReset, email, {"used": False})
     if existing:
         existing.code = code
         existing.expires_at = expires_at
@@ -2798,8 +2806,27 @@ def init_db():
         # After creating tables, check if we need to perform migrations
         perform_migrations()
 
+def add_code_attempts_columns():
+    """Add the attempts column to one-time code tables (works on SQLite and PostgreSQL)."""
+    with app.app_context():
+        try:
+            inspector = inspect(db.engine)
+            for table in ("email_verification", "password_reset"):
+                if not inspector.has_table(table):
+                    continue
+                if any(col["name"] == "attempts" for col in inspector.get_columns(table)):
+                    continue
+                print(f"Migrating database: Adding attempts column to {table} table...")
+                with db.engine.begin() as connection:
+                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0"))
+                print(f"Migration complete: {table}.attempts added.")
+        except Exception as e:
+            print(f"Error adding attempts columns: {str(e)}")
+
+
 def perform_migrations():
     """Check for and apply any needed database migrations."""
+    add_code_attempts_columns()
     with app.app_context():
         try:
             # Use engine.begin() to get a connection and start a single transaction.
@@ -2851,14 +2878,6 @@ def perform_migrations():
                     print("Migrating database: Adding allow_legacy_signin column to user table...")
                     connection.execute(text("ALTER TABLE user ADD COLUMN allow_legacy_signin BOOLEAN NOT NULL DEFAULT 1"))
                     print("Migration complete: user.allow_legacy_signin added.")
-
-                # --- Migration 7: Add attempts to one-time code tables ---
-                for table in ("email_verification", "password_reset"):
-                    cols = connection.execute(text(f"PRAGMA table_info({table})")).all()
-                    if cols and not any(col[1] == 'attempts' for col in cols):
-                        print(f"Migrating database: Adding attempts column to {table} table...")
-                        connection.execute(text(f"ALTER TABLE {table} ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0"))
-                        print(f"Migration complete: {table}.attempts added.")
 
         except Exception as e:
             print(f"Error during database migration: {str(e)}")
