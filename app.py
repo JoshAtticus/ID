@@ -459,20 +459,20 @@ def validate_password_strength(password):
         return False, "Password is too common"
     return True, "Password is strong"
 
-def sanitize_redirect_url(url, allowed_domains=None):
-    if not url:
-        return None
-    if allowed_domains is None:
-        allowed_domains = ['id.joshattic.us', 'localhost']
+def safe_next_path(url, default="/dashboard"):
+    if not url or not isinstance(url, str):
+        return default
+    if "\\" in url or any(ord(c) < 0x21 or ord(c) == 0x7f for c in url):
+        return default
+    if not url.startswith("/") or url.startswith("//"):
+        return default
     try:
         parsed = urlparse(url)
-        if parsed.scheme and parsed.scheme not in ['http', 'https']:
-            return None
-        if parsed.netloc and parsed.netloc not in allowed_domains:
-            return None
-        return url
-    except Exception:
-        return None
+    except ValueError:
+        return default
+    if parsed.scheme or parsed.netloc:
+        return default
+    return url
 
 def send_verification_email(email, code):
     try:
@@ -1384,8 +1384,8 @@ def oauth_authorize():
 
             if not user:
                 from urllib.parse import quote
-                current_url = request.url
-                return redirect(f"/?legacy=1&error=login_required&next={quote(current_url)}")
+                current_path = request.full_path.rstrip("?")
+                return redirect(f"/?legacy=1&error=login_required&next={quote(current_path)}")
 
             if not getattr(user, 'allow_legacy_signin', True):
                 return redirect("/?legacy=1&error=legacy_disabled")
@@ -2339,8 +2339,7 @@ def legacy_login():
     db.session.add(login_record)
     db.session.commit()
 
-    redirect_target = next_url if next_url else "/dashboard"
-    resp = redirect(redirect_target)
+    resp = redirect(safe_next_path(next_url))
     resp.set_cookie("session_token", token, httponly=True, max_age=86400 * 30, samesite="Lax")
     return resp
 
