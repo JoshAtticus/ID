@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import uuid
 import pathlib
 import secrets
-from sqlalchemy import text
+from sqlalchemy import inspect as sqlalchemy_inspect, text
 from urllib.parse import urlparse
 import base64
 import smtplib
@@ -2787,13 +2787,19 @@ def perform_migrations():
                     connection.execute(text("ALTER TABLE user ADD COLUMN allow_legacy_signin BOOLEAN NOT NULL DEFAULT 1"))
                     print("Migration complete: user.allow_legacy_signin added.")
 
-                # --- Migration 7: Add access_token_expires_at to oauth_authorization ---
-                oauth_auth_cols = connection.execute(text("PRAGMA table_info(oauth_authorization)")).all()
-                if not any(col[1] == 'access_token_expires_at' for col in oauth_auth_cols):
-                    print("Migrating database: Adding access_token_expires_at column to oauth_authorization table...")
-                    connection.execute(text("ALTER TABLE oauth_authorization ADD COLUMN access_token_expires_at DATETIME"))
-                    print("Migration complete: oauth_authorization.access_token_expires_at added.")
+        except Exception as e:
+            print(f"Error during database migration: {str(e)}")
 
+        # Dialect-agnostic and in its own transaction so it also runs on non-SQLite databases.
+        try:
+            with db.engine.begin() as connection:
+                # --- Migration 7: Add access_token_expires_at to oauth_authorization ---
+                oauth_auth_cols = sqlalchemy_inspect(connection).get_columns("oauth_authorization")
+                if not any(col["name"] == "access_token_expires_at" for col in oauth_auth_cols):
+                    print("Migrating database: Adding access_token_expires_at column to oauth_authorization table...")
+                    column_type = db.DateTime(timezone=True).compile(dialect=connection.dialect)
+                    connection.execute(text(f"ALTER TABLE oauth_authorization ADD COLUMN access_token_expires_at {column_type}"))
+                    print("Migration complete: oauth_authorization.access_token_expires_at added.")
         except Exception as e:
             print(f"Error during database migration: {str(e)}")
 
