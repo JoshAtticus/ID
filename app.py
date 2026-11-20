@@ -153,6 +153,8 @@ def add_security_headers(response):
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
 
+ACCESS_TOKEN_LIFETIME_SECONDS = 3600
+
 OAUTH_SCOPES = {
     "name": "Access your full name",
     "dob": "Access your date of birth",
@@ -306,6 +308,15 @@ class OAuthAuthorization(db.Model):
     )
     last_used = db.Column(db.DateTime(timezone=True))
     usage_count = db.Column(db.Integer, default=0)
+    access_token_expires_at = db.Column(db.DateTime(timezone=True))
+
+    def is_access_token_expired(self):
+        expires_at = self.access_token_expires_at
+        if expires_at is None:
+            return True
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return expires_at <= datetime.now(timezone.utc)
 
 
 class OAuthCode(db.Model):
@@ -1825,6 +1836,7 @@ def oauth_token():
     db.session.commit()
 
     access_token = secrets.token_urlsafe(48)
+    access_token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=ACCESS_TOKEN_LIFETIME_SECONDS)
     auth = OAuthAuthorization.query.filter_by(user_id=oauth_code.user_id, app_id=oauth_app.id).first()
     if not auth:
         auth = OAuthAuthorization(
@@ -1832,12 +1844,14 @@ def oauth_token():
             app_id=oauth_app.id,
             scopes=oauth_code.scopes,
             access_token=access_token,
+            access_token_expires_at=access_token_expires_at,
             usage_count=1
         )
         db.session.add(auth)
     else:
         auth.scopes = oauth_code.scopes
         auth.access_token = access_token
+        auth.access_token_expires_at = access_token_expires_at
         auth.usage_count = (auth.usage_count or 0) + 1
         auth.last_used = datetime.now(timezone.utc)
     db.session.commit()
@@ -1845,7 +1859,7 @@ def oauth_token():
     response_data = {
         "access_token": access_token,
         "token_type": "Bearer",
-        "expires_in": 3600,
+        "expires_in": ACCESS_TOKEN_LIFETIME_SECONDS,
         "scope": oauth_code.scopes,
     }
 
@@ -1910,7 +1924,7 @@ def oauth_introspect():
     
     auth = OAuthAuthorization.query.filter_by(access_token=token).first()
     
-    if not auth:
+    if not auth or auth.is_access_token_expired():
         return jsonify({"active": False}), 200
     
     user = User.query.get(auth.user_id)
@@ -1935,7 +1949,7 @@ def oauth_userinfo():
         return jsonify({"error": "invalid_token"}), 401
     access_token = auth_header.split(" ")[1]
     auth = OAuthAuthorization.query.filter_by(access_token=access_token).first()
-    if not auth:
+    if not auth or auth.is_access_token_expired():
         return jsonify({"error": "invalid_token"}), 401
     
     auth.last_used = datetime.now(timezone.utc)
@@ -2927,6 +2941,19 @@ def perform_migrations():
                     connection.execute(text("ALTER TABLE user ADD COLUMN allow_legacy_signin BOOLEAN NOT NULL DEFAULT 1"))
                     print("Migration complete: user.allow_legacy_signin added.")
 
+        except Exception as e:
+            print(f"Error during database migration: {str(e)}")
+
+        # Dialect-agnostic and in its own transaction so it also runs on non-SQLite databases.
+        try:
+            with db.engine.begin() as connection:
+                # --- Migration 7: Add access_token_expires_at to oauth_authorization ---
+                oauth_auth_cols = inspect(connection).get_columns("oauth_authorization")
+                if not any(col["name"] == "access_token_expires_at" for col in oauth_auth_cols):
+                    print("Migrating database: Adding access_token_expires_at column to oauth_authorization table...")
+                    column_type = db.DateTime(timezone=True).compile(dialect=connection.dialect)
+                    connection.execute(text(f"ALTER TABLE oauth_authorization ADD COLUMN access_token_expires_at {column_type}"))
+                    print("Migration complete: oauth_authorization.access_token_expires_at added.")
         except Exception as e:
             print(f"Error during database migration: {str(e)}")
 
