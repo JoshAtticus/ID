@@ -477,17 +477,19 @@ def sanitize_redirect_url(url, allowed_domains=None):
 def is_registered_redirect_uri(oauth_app, redirect_uri):
     if not redirect_uri or not oauth_app or not oauth_app.redirect_uri:
         return False
-    registered_uris = [uri.strip() for uri in oauth_app.redirect_uri.split(',')]
-    return redirect_uri in registered_uris
+    raw_uris = oauth_app.redirect_uri.split(',')
+    return redirect_uri in raw_uris or redirect_uri in [uri.strip() for uri in raw_uris]
 
 def validate_redirect_uri_for_registration(uri):
-    if not isinstance(uri, str) or not uri or uri != uri.strip() or ',' in uri:
+    if not isinstance(uri, str) or not uri or ',' in uri or '\\' in uri:
+        return False
+    if any(ch.isspace() or ord(ch) < 0x20 or ord(ch) == 0x7f for ch in uri):
         return False
     try:
         parsed = urlparse(uri)
     except ValueError:
         return False
-    if not parsed.netloc or not parsed.hostname or parsed.fragment:
+    if not parsed.netloc or not parsed.hostname or parsed.fragment or '@' in parsed.netloc:
         return False
     if parsed.scheme == "https":
         return True
