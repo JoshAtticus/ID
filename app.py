@@ -1678,7 +1678,7 @@ def oauth_token():
 
     oauth_app, error = get_oauth_app(client_id=client_id, client_secret=client_secret)
     if error:
-        return error
+        return jsonify({"error": "unauthorized_client", "error_description": BANNED_APP_ERROR_DESCRIPTION}), 400
     if not oauth_app:
         return jsonify({"error": "invalid_client"}), 401
 
