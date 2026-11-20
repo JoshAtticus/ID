@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import re
 from werkzeug.utils import secure_filename
+from markupsafe import escape
 from datetime import datetime, timedelta, timezone
 import uuid
 import pathlib
@@ -387,20 +388,42 @@ def render_legacy_index_page(error=None, info=None, next_url="", email=""):
     with open(filepath, "r", encoding="utf-8") as f:
         html = f.read()
 
-    error_box = f'<div class="error-message"><strong>Error:</strong> {error}</div>' if error else ''
-    info_box = f'<div class="info-message">{info}</div>' if info else ''
-    next_field = f'<input type="hidden" name="next" value="{next_url}">' if next_url else ''
+    error_box = f'<div class="error-message"><strong>Error:</strong> {escape(error)}</div>' if error else ''
+    info_box = f'<div class="info-message">{escape(info)}</div>' if info else ''
+    next_field = f'<input type="hidden" name="next" value="{escape(next_url)}">' if next_url else ''
 
     html = html.replace("<!--ERROR_BOX-->", error_box)
     html = html.replace("<!--INFO_BOX-->", info_box)
     html = html.replace("<!--NEXT_FIELD-->", next_field)
-    html = html.replace("<!--EMAIL_VAL-->", email or "")
+    html = html.replace("<!--EMAIL_VAL-->", str(escape(email or "")))
     return html
+
+def is_registered_redirect_uri(oauth_app, redirect_uri):
+    if not oauth_app or not redirect_uri or not oauth_app.redirect_uri:
+        return False
+    try:
+        request_uri = urlparse(redirect_uri)
+        if request_uri.scheme not in ("http", "https") or not request_uri.netloc:
+            return False
+        for registered in (uri.strip() for uri in oauth_app.redirect_uri.split(',')):
+            reg_parsed = urlparse(registered)
+            if (reg_parsed.scheme == request_uri.scheme and
+                reg_parsed.netloc == request_uri.netloc and
+                (not reg_parsed.path or request_uri.path.startswith(reg_parsed.path))):
+                return True
+    except ValueError:
+        return False
+    return False
 
 def render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state, user=None, error=None):
     filepath = os.path.join(app.root_path, "static", "legacy_authorize.html")
     with open(filepath, "r", encoding="utf-8") as f:
         html = f.read()
+
+    if not is_registered_redirect_uri(oauth_app, redirect_uri):
+        redirect_uri = ""
+        if not error:
+            error = "Invalid client ID or redirect URI."
 
     app_name = oauth_app.name if oauth_app else "Unknown Application"
     verified_badge = '<span class="badge">VERIFIED</span>' if (oauth_app and oauth_app.verified) else ''
@@ -409,19 +432,19 @@ def render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, stat
     scopes_html = ""
     for s in requested_scopes:
         desc = OAUTH_SCOPES.get(s, s)
-        scopes_html += f'<li class="scope-item">{desc}</li>\n'
+        scopes_html += f'<li class="scope-item">{escape(desc)}</li>\n'
 
-    user_bar = f'<div class="user-signed-in">Signed in as <strong>{user.email}</strong></div>' if user else ''
-    error_box = f'<div class="error-message"><strong>Error:</strong> {error}</div>' if error else ''
+    user_bar = f'<div class="user-signed-in">Signed in as <strong>{escape(user.email)}</strong></div>' if user else ''
+    error_box = f'<div class="error-message"><strong>Error:</strong> {escape(error)}</div>' if error else ''
 
-    html = html.replace("<!--APP_NAME-->", app_name)
+    html = html.replace("<!--APP_NAME-->", str(escape(app_name)))
     html = html.replace("<!--VERIFIED_BADGE-->", verified_badge)
     html = html.replace("<!--SCOPES_LIST-->", scopes_html)
-    html = html.replace("<!--CLIENT_ID-->", client_id or "")
-    html = html.replace("<!--REDIRECT_URI-->", redirect_uri or "")
-    html = html.replace("<!--SCOPE-->", scope or "")
-    html = html.replace("<!--STATE-->", state or "")
-    html = html.replace("<!--CANCEL_URL-->", redirect_uri or "#")
+    html = html.replace("<!--CLIENT_ID-->", str(escape(client_id or "")))
+    html = html.replace("<!--REDIRECT_URI-->", str(escape(redirect_uri)))
+    html = html.replace("<!--SCOPE-->", str(escape(scope or "")))
+    html = html.replace("<!--STATE-->", str(escape(state or "")))
+    html = html.replace("<!--CANCEL_URL-->", str(escape(redirect_uri or "#")))
     html = html.replace("<!--USER_INFO_BAR-->", user_bar)
     html = html.replace("<!--ERROR_BOX-->", error_box)
     return html
