@@ -349,6 +349,17 @@ def render_legacy_index_page(error=None, info=None, next_url="", email=""):
     html = html.replace("<!--EMAIL_VAL-->", email or "")
     return html
 
+BANNED_APP_ERROR_DESCRIPTION = "This app has been banned and cannot be used. If you are a user, do not continue using this app. If you are the app developer, please send an email to id@joshattic.us to appeal this ban."
+
+def get_oauth_app(**filters):
+    """Look up an OAuth app; returns (app, None) or (None, error_response)."""
+    oauth_app = OAuthApp.query.filter_by(**filters).first() if all(filters.values()) else None
+    if not oauth_app:
+        return None, None
+    if oauth_app.banned:
+        return None, (jsonify({"error": "access_denied", "error_description": BANNED_APP_ERROR_DESCRIPTION}), 403)
+    return oauth_app, None
+
 def render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state, user=None, error=None):
     filepath = os.path.join(app.root_path, "static", "legacy_authorize.html")
     with open(filepath, "r", encoding="utf-8") as f:
@@ -1329,18 +1340,14 @@ def oauth_authorize():
                 "error_description": "State parameter is required for security"
             }), 400
 
-        oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
+        oauth_app, error = get_oauth_app(client_id=client_id)
+        if error:
+            return error
         if not oauth_app:
             return jsonify({
                 "error": "invalid_client",
                 "error_description": "No application found with this client ID"
             }), 400
-        
-        if oauth_app.banned:
-            return jsonify({
-                "error": "access_denied",
-                "error_description": "This app has been banned and cannot be used. If you are a user, do not continue using this app. If you are the app developer, please send an email to id@joshattic.us to appeal this ban."
-            }), 403
         
         # Validate redirect URI against registered URIs (comma-separated list)
         try:
@@ -1425,7 +1432,9 @@ def oauth_authorize():
         if not state or len(state) < 8:
             return jsonify({"error": "invalid_request", "error_description": "State parameter is required"}), 400
         
-        oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
+        oauth_app, error = get_oauth_app(client_id=client_id)
+        if error:
+            return error
         if not oauth_app:
             return jsonify({"error": "invalid_client"}), 400
         
@@ -1496,7 +1505,9 @@ def check_authorization():
     if not client_id:
         return jsonify({"error": "missing_client_id"}), 400
         
-    oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
+    oauth_app, error = get_oauth_app(client_id=client_id)
+    if error:
+        return error
     if not oauth_app:
         return jsonify({"error": "invalid_client"}), 404
         
@@ -1529,7 +1540,9 @@ def get_oauth_app_info():
     if not client_id:
         return jsonify({"error": "missing_client_id"}), 400
         
-    oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
+    oauth_app, error = get_oauth_app(client_id=client_id)
+    if error:
+        return error
     if not oauth_app:
         return jsonify({"error": "invalid_client"}), 404
 
@@ -1558,7 +1571,9 @@ def oauth_approve():
         scope = request.json.get("scope", "")
         redirect_uri = request.json.get("redirect_uri")
 
-        oauth_app = OAuthApp.query.filter_by(client_id=client_id).first()
+        oauth_app, error = get_oauth_app(client_id=client_id)
+        if error:
+            return error
         if not oauth_app:
             return jsonify({"error": "invalid_client"}), 400
 
@@ -1661,7 +1676,9 @@ def oauth_token():
     if not client_id:
         return jsonify({"error": "invalid_request", "error_description": "Client credentials not provided"}), 400
 
-    oauth_app = OAuthApp.query.filter_by(client_id=client_id, client_secret=client_secret).first()
+    oauth_app, error = get_oauth_app(client_id=client_id, client_secret=client_secret)
+    if error:
+        return error
     if not oauth_app:
         return jsonify({"error": "invalid_client"}), 401
 
@@ -1786,7 +1803,7 @@ def oauth_introspect():
     user = User.query.get(auth.user_id)
     app = OAuthApp.query.get(auth.app_id)
     
-    if not user or not app:
+    if not user or not app or app.banned:
         return jsonify({"active": False}), 200
     
     return jsonify({
@@ -1806,6 +1823,9 @@ def oauth_userinfo():
     access_token = auth_header.split(" ")[1]
     auth = OAuthAuthorization.query.filter_by(access_token=access_token).first()
     if not auth:
+        return jsonify({"error": "invalid_token"}), 401
+    oauth_app = OAuthApp.query.get(auth.app_id)
+    if not oauth_app or oauth_app.banned:
         return jsonify({"error": "invalid_token"}), 401
     
     auth.last_used = datetime.now(timezone.utc)
@@ -2691,7 +2711,9 @@ def authorize_oauth_app():
         redirect_uri = request.args.get("redirect_uri")
         scope = request.args.get("scope", "")
         state = request.args.get("state")
-        oauth_app = OAuthApp.query.filter_by(client_id=client_id).first() if client_id else None
+        oauth_app, error = get_oauth_app(client_id=client_id)
+        if error:
+            return error
         return render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state)
     return send_from_directory("static", "authorize.html")
 
