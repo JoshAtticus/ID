@@ -1,5 +1,8 @@
 from flask import Flask, request, jsonify, send_from_directory, redirect, render_template
 from flask_sqlalchemy import SQLAlchemy
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
@@ -29,6 +32,7 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 app.config['COMMON_PASSWORDS_FILE'] = 'static/resources/common_passwords.txt'
 app.config['MAX_LOGIN_ATTEMPTS'] = 5
 app.config['LOGIN_TIMEOUT'] = 300
+app.config['MAX_CODE_ATTEMPTS'] = 5
 app.config['SMTP_SERVER'] = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 app.config['SMTP_PORT'] = int(os.environ.get("SMTP_PORT", 587))
 app.config['SMTP_USERNAME'] = os.environ.get("SMTP_USERNAME")
@@ -37,6 +41,48 @@ app.config['SMTP_FROM_EMAIL'] = os.environ.get("SMTP_FROM_EMAIL")
 app.config['SMTP_FROM_NAME'] = os.environ.get("SMTP_FROM_NAME", "JoshAtticusID")
 
 db = SQLAlchemy(app)
+
+trusted_proxy_count = int(os.environ.get("TRUSTED_PROXY_COUNT", 0))
+if trusted_proxy_count:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=trusted_proxy_count)
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+)
+
+
+def email_rate_limit_key():
+    data = request.get_json(silent=True)
+    email = data.get("email") if isinstance(data, dict) else None
+    if email is None:
+        email = request.form.get("email")
+    return f"email:{str(email or '').strip().lower()}"
+
+
+CODE_REQUEST_IP_LIMIT = "5 per minute;20 per hour"
+CODE_REQUEST_EMAIL_LIMIT = "3 per 15 minutes;10 per day"
+CODE_CHECK_IP_LIMIT = "10 per minute;60 per hour"
+CODE_CHECK_EMAIL_LIMIT = "10 per 15 minutes;30 per day"
+LOGIN_IP_LIMIT = "20 per minute;200 per hour"
+LOGIN_EMAIL_LIMIT = f"{app.config['MAX_LOGIN_ATTEMPTS']} per {app.config['LOGIN_TIMEOUT']} seconds"
+
+
+def is_failed_login(response):
+    return response.status_code == 401
+
+
+@app.errorhandler(429)
+def rate_limit_exceeded(e):
+    message = "Too many requests. Please wait a while and try again."
+    if request.path == "/account/legacy-login":
+        return render_legacy_index_page(
+            error=message,
+            next_url=request.form.get("next") or "",
+            email=request.form.get("email"),
+        ), 429
+    return jsonify({"valid": False, "message": message}), 429
 
 def run_migrations(app, db):
     migration_folder = os.path.join(os.path.dirname(__file__), 'migrations')
@@ -192,6 +238,7 @@ class EmailVerification(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at = db.Column(db.DateTime(timezone=True))
     verified = db.Column(db.Boolean, default=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
 
 
 class PasswordReset(db.Model):
@@ -202,6 +249,7 @@ class PasswordReset(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at = db.Column(db.DateTime(timezone=True))
     used = db.Column(db.Boolean, default=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
 
 
 class Session(db.Model):
@@ -659,6 +707,49 @@ def send_password_reset_email(email, code):
 def generate_verification_code():
     return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
 
+
+def verify_one_time_code(model, email, code, pending_filter):
+    """Check a code for the pending record of ``email``.
+
+    Returns ``(record, None)`` on success or ``(None, reason)`` where reason is
+    "invalid", "expired" or "locked". Each guess reserves an attempt atomically
+    before comparing so concurrent guesses cannot exceed MAX_CODE_ATTEMPTS;
+    the reservation is released only when the guess is correct.
+    """
+    max_attempts = app.config['MAX_CODE_ATTEMPTS']
+    record = model.query.filter_by(email=email, **pending_filter).order_by(model.id.desc()).first()
+    if not record:
+        return None, "invalid"
+    if datetime.now(timezone.utc) > record.expires_at.replace(tzinfo=timezone.utc):
+        return None, "expired"
+
+    reserved = model.query.filter(
+        model.id == record.id,
+        model.attempts < max_attempts,
+    ).update({model.attempts: model.attempts + 1}, synchronize_session=False)
+    db.session.commit()
+    if not reserved:
+        return None, "locked"
+
+    db.session.refresh(record)
+    if not secrets.compare_digest(str(record.code).encode(), str(code).encode()):
+        return None, "locked" if record.attempts >= max_attempts else "invalid"
+
+    model.query.filter(model.id == record.id).update(
+        {model.attempts: model.attempts - 1}, synchronize_session=False
+    )
+    db.session.commit()
+    db.session.refresh(record)
+    return record, None
+
+
+def code_error_message(reason, kind):
+    if reason == "expired":
+        return f"{kind} code has expired"
+    if reason == "locked":
+        return f"Too many incorrect attempts. Please request a new {kind.lower()} code."
+    return f"Invalid {kind.lower()} code"
+
 def validate_file_upload(file):
     if not file or not file.filename:
         return False, "No file provided"
@@ -690,6 +781,8 @@ def validate_file_upload(file):
     return True, "Valid file"
 
 @app.route("/account/create", methods=["POST"])
+@limiter.limit(CODE_CHECK_IP_LIMIT)
+@limiter.limit(CODE_CHECK_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def create_account():
     data = request.get_json()
     password = data.get("password")
@@ -714,17 +807,11 @@ def create_account():
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email already exists"}), 409
 
-    verification = EmailVerification.query.filter_by(
-        email=email,
-        code=verification_code,
-        verified=False
-    ).first()
-
+    verification, reason = verify_one_time_code(
+        EmailVerification, email, verification_code, {"verified": False}
+    )
     if not verification:
-        return jsonify({"message": "Invalid verification code"}), 400
-
-    if datetime.now(timezone.utc) > verification.expires_at.replace(tzinfo=timezone.utc):
-        return jsonify({"message": "Verification code has expired"}), 400
+        return jsonify({"message": code_error_message(reason, "Verification")}), 400
 
     try:
         dob_date = datetime.strptime(dob, "%Y-%m-%d").date()
@@ -775,6 +862,8 @@ def create_account():
 
 
 @app.route("/account/send-verification", methods=["POST"])
+@limiter.limit(CODE_REQUEST_IP_LIMIT)
+@limiter.limit(CODE_REQUEST_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def send_verification():
     data = request.get_json()
     email = data.get("email")
@@ -792,6 +881,7 @@ def send_verification():
     if existing:
         existing.code = code
         existing.expires_at = expires_at
+        existing.attempts = 0
         existing.created_at = datetime.now(timezone.utc)
     else:
         verification = EmailVerification(
@@ -814,6 +904,8 @@ def send_verification():
 
 
 @app.route("/account/check-verification", methods=["POST"])
+@limiter.limit(CODE_CHECK_IP_LIMIT)
+@limiter.limit(CODE_CHECK_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def check_verification():
     data = request.get_json()
     email = data.get("email")
@@ -825,22 +917,16 @@ def check_verification():
     if len(code) != 6:
         return jsonify({"valid": False, "message": "Code must be 6 digits"}), 400
 
-    verification = EmailVerification.query.filter_by(
-        email=email,
-        code=code,
-        verified=False
-    ).first()
-
+    verification, reason = verify_one_time_code(EmailVerification, email, code, {"verified": False})
     if not verification:
-        return jsonify({"valid": False, "message": "Invalid verification code"}), 400
-
-    if datetime.now(timezone.utc) > verification.expires_at.replace(tzinfo=timezone.utc):
-        return jsonify({"valid": False, "message": "Verification code has expired"}), 400
+        return jsonify({"valid": False, "message": code_error_message(reason, "Verification")}), 400
 
     return jsonify({"valid": True, "message": "Code is valid"}), 200
 
 
 @app.route("/account/login", methods=["POST"])
+@limiter.limit(LOGIN_IP_LIMIT)
+@limiter.limit(LOGIN_EMAIL_LIMIT, key_func=email_rate_limit_key, deduct_when=is_failed_login)
 def login():
     data = request.get_json()
     email = data.get("email")
@@ -895,6 +981,8 @@ def login():
 
 
 @app.route("/account/password-reset/request", methods=["POST"])
+@limiter.limit(CODE_REQUEST_IP_LIMIT)
+@limiter.limit(CODE_REQUEST_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def request_password_reset():
     """Request a password reset code"""
     data = request.get_json()
@@ -917,6 +1005,7 @@ def request_password_reset():
     if existing:
         existing.code = code
         existing.expires_at = expires_at
+        existing.attempts = 0
         existing.created_at = datetime.now(timezone.utc)
     else:
         reset_request = PasswordReset(
@@ -940,6 +1029,8 @@ def request_password_reset():
 
 
 @app.route("/account/password-reset/verify", methods=["POST"])
+@limiter.limit(CODE_CHECK_IP_LIMIT)
+@limiter.limit(CODE_CHECK_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def verify_password_reset():
     """Verify the password reset code"""
     data = request.get_json()
@@ -952,22 +1043,16 @@ def verify_password_reset():
     if len(code) != 6:
         return jsonify({"valid": False, "message": "Code must be 6 digits"}), 400
 
-    reset_request = PasswordReset.query.filter_by(
-        email=email,
-        code=code,
-        used=False
-    ).first()
-
+    reset_request, reason = verify_one_time_code(PasswordReset, email, code, {"used": False})
     if not reset_request:
-        return jsonify({"valid": False, "message": "Invalid reset code"}), 400
-
-    if datetime.now(timezone.utc) > reset_request.expires_at.replace(tzinfo=timezone.utc):
-        return jsonify({"valid": False, "message": "Reset code has expired"}), 400
+        return jsonify({"valid": False, "message": code_error_message(reason, "Reset")}), 400
 
     return jsonify({"valid": True, "message": "Code is valid"}), 200
 
 
 @app.route("/account/password-reset/complete", methods=["POST"])
+@limiter.limit(CODE_CHECK_IP_LIMIT)
+@limiter.limit(CODE_CHECK_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def complete_password_reset():
     """Complete the password reset with new password"""
     data = request.get_json()
@@ -984,17 +1069,9 @@ def complete_password_reset():
         return jsonify({"message": msg}), 400
 
     # Find the reset request
-    reset_request = PasswordReset.query.filter_by(
-        email=email,
-        code=code,
-        used=False
-    ).first()
-
+    reset_request, reason = verify_one_time_code(PasswordReset, email, code, {"used": False})
     if not reset_request:
-        return jsonify({"message": "Invalid reset code"}), 400
-
-    if datetime.now(timezone.utc) > reset_request.expires_at.replace(tzinfo=timezone.utc):
-        return jsonify({"message": "Reset code has expired"}), 400
+        return jsonify({"message": code_error_message(reason, "Reset")}), 400
 
     # Find user and update password
     user = User.query.filter_by(email=email).first()
@@ -2299,6 +2376,8 @@ def update_profile():
 
 ### Static Routes ###
 @app.route("/account/legacy-login", methods=["POST"])
+@limiter.limit(LOGIN_IP_LIMIT)
+@limiter.limit(LOGIN_EMAIL_LIMIT, key_func=email_rate_limit_key, deduct_when=is_failed_login)
 def legacy_login():
     email = request.form.get("email")
     password = request.form.get("password")
@@ -2772,6 +2851,14 @@ def perform_migrations():
                     print("Migrating database: Adding allow_legacy_signin column to user table...")
                     connection.execute(text("ALTER TABLE user ADD COLUMN allow_legacy_signin BOOLEAN NOT NULL DEFAULT 1"))
                     print("Migration complete: user.allow_legacy_signin added.")
+
+                # --- Migration 7: Add attempts to one-time code tables ---
+                for table in ("email_verification", "password_reset"):
+                    cols = connection.execute(text(f"PRAGMA table_info({table})")).all()
+                    if cols and not any(col[1] == 'attempts' for col in cols):
+                        print(f"Migrating database: Adding attempts column to {table} table...")
+                        connection.execute(text(f"ALTER TABLE {table} ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0"))
+                        print(f"Migration complete: {table}.attempts added.")
 
         except Exception as e:
             print(f"Error during database migration: {str(e)}")
