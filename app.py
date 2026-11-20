@@ -206,8 +206,8 @@ class PasswordReset(db.Model):
 
 class Session(db.Model):
     id = db.Column(db.String(36), primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    token = db.Column(db.String(500), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    token = db.Column(db.String(500), nullable=False, index=True)
     device_name = db.Column(db.String(100))
     location = db.Column(db.String(100))
     last_active = db.Column(
