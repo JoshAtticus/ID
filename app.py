@@ -1,5 +1,8 @@
 from flask import Flask, request, jsonify, send_from_directory, redirect, render_template
 from flask_sqlalchemy import SQLAlchemy
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
@@ -9,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 import uuid
 import pathlib
 import secrets
-from sqlalchemy import inspect as sqlalchemy_inspect, text
+from sqlalchemy import text, inspect
 from urllib.parse import urlparse
 import base64
 import smtplib
@@ -29,6 +32,7 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 app.config['COMMON_PASSWORDS_FILE'] = 'static/resources/common_passwords.txt'
 app.config['MAX_LOGIN_ATTEMPTS'] = 5
 app.config['LOGIN_TIMEOUT'] = 300
+app.config['MAX_CODE_ATTEMPTS'] = 5
 app.config['SMTP_SERVER'] = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 app.config['SMTP_PORT'] = int(os.environ.get("SMTP_PORT", 587))
 app.config['SMTP_USERNAME'] = os.environ.get("SMTP_USERNAME")
@@ -37,6 +41,48 @@ app.config['SMTP_FROM_EMAIL'] = os.environ.get("SMTP_FROM_EMAIL")
 app.config['SMTP_FROM_NAME'] = os.environ.get("SMTP_FROM_NAME", "JoshAtticusID")
 
 db = SQLAlchemy(app)
+
+trusted_proxy_count = int(os.environ.get("TRUSTED_PROXY_COUNT", 0))
+if trusted_proxy_count:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=trusted_proxy_count)
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+)
+
+
+def email_rate_limit_key():
+    data = request.get_json(silent=True)
+    email = data.get("email") if isinstance(data, dict) else None
+    if email is None:
+        email = request.form.get("email")
+    return f"email:{str(email or '').strip().lower()}"
+
+
+CODE_REQUEST_IP_LIMIT = "5 per minute;20 per hour"
+CODE_REQUEST_EMAIL_LIMIT = "3 per 15 minutes;10 per day"
+CODE_CHECK_IP_LIMIT = "10 per minute;60 per hour"
+CODE_CHECK_EMAIL_LIMIT = "10 per 15 minutes;30 per day"
+LOGIN_IP_LIMIT = "20 per minute;200 per hour"
+LOGIN_EMAIL_LIMIT = f"{app.config['MAX_LOGIN_ATTEMPTS']} per {app.config['LOGIN_TIMEOUT']} seconds"
+
+
+def is_failed_login(response):
+    return response.status_code == 401
+
+
+@app.errorhandler(429)
+def rate_limit_exceeded(e):
+    message = "Too many requests. Please wait a while and try again."
+    if request.path == "/account/legacy-login":
+        return render_legacy_index_page(
+            error=message,
+            next_url=request.form.get("next") or "",
+            email=request.form.get("email"),
+        ), 429
+    return jsonify({"valid": False, "message": message}), 429
 
 def run_migrations(app, db):
     migration_folder = os.path.join(os.path.dirname(__file__), 'migrations')
@@ -194,6 +240,7 @@ class EmailVerification(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at = db.Column(db.DateTime(timezone=True))
     verified = db.Column(db.Boolean, default=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
 
 
 class PasswordReset(db.Model):
@@ -204,12 +251,13 @@ class PasswordReset(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at = db.Column(db.DateTime(timezone=True))
     used = db.Column(db.Boolean, default=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
 
 
 class Session(db.Model):
     id = db.Column(db.String(36), primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    token = db.Column(db.String(500), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    token = db.Column(db.String(500), nullable=False, index=True)
     device_name = db.Column(db.String(100))
     location = db.Column(db.String(100))
     last_active = db.Column(
@@ -388,6 +436,14 @@ def render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, stat
     html = html.replace("<!--USER_INFO_BAR-->", user_bar)
     html = html.replace("<!--ERROR_BOX-->", error_box)
     return html
+
+def decode_session_token(token):
+    """Decode a login JWT and require a matching active Session row; raises jwt.InvalidTokenError if revoked."""
+    data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+    session = Session.query.filter_by(token=token, user_id=data.get("user_id")).first()
+    if not session:
+        raise jwt.InvalidTokenError("Session has been revoked")
+    return data
 
 def update_session_activity(token):
     """Update last_active timestamp for the session associated with the token"""
@@ -670,6 +726,57 @@ def send_password_reset_email(email, code):
 def generate_verification_code():
     return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
 
+
+def get_pending_code_record(model, email, pending_filter):
+    """Return the newest pending code row for ``email``, deleting older duplicates."""
+    records = model.query.filter_by(email=email, **pending_filter).order_by(model.id.desc()).all()
+    for duplicate in records[1:]:
+        db.session.delete(duplicate)
+    return records[0] if records else None
+
+
+def verify_one_time_code(model, email, code, pending_filter):
+    """Check a code for the pending record of ``email``.
+
+    Returns ``(record, None)`` on success or ``(None, reason)`` where reason is
+    "invalid", "expired" or "locked". Each guess reserves an attempt atomically
+    before comparing so concurrent guesses cannot exceed MAX_CODE_ATTEMPTS;
+    the reservation is released only when the guess is correct.
+    """
+    max_attempts = app.config['MAX_CODE_ATTEMPTS']
+    record = get_pending_code_record(model, email, pending_filter)
+    if not record:
+        return None, "invalid"
+    if datetime.now(timezone.utc) > record.expires_at.replace(tzinfo=timezone.utc):
+        return None, "expired"
+
+    reserved = model.query.filter(
+        model.id == record.id,
+        model.attempts < max_attempts,
+    ).update({model.attempts: model.attempts + 1}, synchronize_session=False)
+    db.session.commit()
+    if not reserved:
+        return None, "locked"
+
+    db.session.refresh(record)
+    if not secrets.compare_digest(str(record.code).encode(), str(code).encode()):
+        return None, "locked" if record.attempts >= max_attempts else "invalid"
+
+    model.query.filter(model.id == record.id).update(
+        {model.attempts: model.attempts - 1}, synchronize_session=False
+    )
+    db.session.commit()
+    db.session.refresh(record)
+    return record, None
+
+
+def code_error_message(reason, kind):
+    if reason == "expired":
+        return f"{kind} code has expired"
+    if reason == "locked":
+        return f"Too many incorrect attempts. Please request a new {kind.lower()} code."
+    return f"Invalid {kind.lower()} code"
+
 def validate_file_upload(file):
     if not file or not file.filename:
         return False, "No file provided"
@@ -701,6 +808,8 @@ def validate_file_upload(file):
     return True, "Valid file"
 
 @app.route("/account/create", methods=["POST"])
+@limiter.limit(CODE_CHECK_IP_LIMIT)
+@limiter.limit(CODE_CHECK_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def create_account():
     data = request.get_json()
     password = data.get("password")
@@ -725,17 +834,11 @@ def create_account():
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email already exists"}), 409
 
-    verification = EmailVerification.query.filter_by(
-        email=email,
-        code=verification_code,
-        verified=False
-    ).first()
-
+    verification, reason = verify_one_time_code(
+        EmailVerification, email, verification_code, {"verified": False}
+    )
     if not verification:
-        return jsonify({"message": "Invalid verification code"}), 400
-
-    if datetime.now(timezone.utc) > verification.expires_at.replace(tzinfo=timezone.utc):
-        return jsonify({"message": "Verification code has expired"}), 400
+        return jsonify({"message": code_error_message(reason, "Verification")}), 400
 
     try:
         dob_date = datetime.strptime(dob, "%Y-%m-%d").date()
@@ -767,14 +870,27 @@ def create_account():
         send_welcome_email(new_user)
         
         # Auto-login: Generate JWT token for the new user
+        current_time = datetime.now(timezone.utc)
+        session_id = str(uuid.uuid4())
         token = jwt.encode(
             {
                 "user_id": new_user.id,
-                "exp": datetime.now(timezone.utc) + timedelta(hours=2)
+                "exp": current_time + timedelta(hours=2),
+                "jti": session_id
             },
             app.config["SECRET_KEY"],
             algorithm="HS256"
         )
+        db.session.add(Session(
+            id=session_id,
+            user_id=new_user.id,
+            token=token,
+            device_name=request.headers.get("User-Agent", "Unknown Device"),
+            location="Unknown Location",
+            last_active=current_time,
+            created_at=current_time,
+        ))
+        db.session.commit()
         
         return jsonify({
             "message": "Account created successfully",
@@ -786,6 +902,8 @@ def create_account():
 
 
 @app.route("/account/send-verification", methods=["POST"])
+@limiter.limit(CODE_REQUEST_IP_LIMIT)
+@limiter.limit(CODE_REQUEST_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def send_verification():
     data = request.get_json()
     email = data.get("email")
@@ -799,10 +917,11 @@ def send_verification():
     code = generate_verification_code()
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
 
-    existing = EmailVerification.query.filter_by(email=email, verified=False).first()
+    existing = get_pending_code_record(EmailVerification, email, {"verified": False})
     if existing:
         existing.code = code
         existing.expires_at = expires_at
+        existing.attempts = 0
         existing.created_at = datetime.now(timezone.utc)
     else:
         verification = EmailVerification(
@@ -825,6 +944,8 @@ def send_verification():
 
 
 @app.route("/account/check-verification", methods=["POST"])
+@limiter.limit(CODE_CHECK_IP_LIMIT)
+@limiter.limit(CODE_CHECK_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def check_verification():
     data = request.get_json()
     email = data.get("email")
@@ -836,22 +957,16 @@ def check_verification():
     if len(code) != 6:
         return jsonify({"valid": False, "message": "Code must be 6 digits"}), 400
 
-    verification = EmailVerification.query.filter_by(
-        email=email,
-        code=code,
-        verified=False
-    ).first()
-
+    verification, reason = verify_one_time_code(EmailVerification, email, code, {"verified": False})
     if not verification:
-        return jsonify({"valid": False, "message": "Invalid verification code"}), 400
-
-    if datetime.now(timezone.utc) > verification.expires_at.replace(tzinfo=timezone.utc):
-        return jsonify({"valid": False, "message": "Verification code has expired"}), 400
+        return jsonify({"valid": False, "message": code_error_message(reason, "Verification")}), 400
 
     return jsonify({"valid": True, "message": "Code is valid"}), 200
 
 
 @app.route("/account/login", methods=["POST"])
+@limiter.limit(LOGIN_IP_LIMIT)
+@limiter.limit(LOGIN_EMAIL_LIMIT, key_func=email_rate_limit_key, deduct_when=is_failed_login)
 def login():
     data = request.get_json()
     email = data.get("email")
@@ -865,16 +980,17 @@ def login():
         
         # Default to 24 hours, extend to 30 days if remember_me is True
         expiration_delta = timedelta(days=30) if remember_me else timedelta(hours=24)
+        session_id = str(uuid.uuid4())
 
         token = jwt.encode(
-            {"user_id": user.id, "exp": current_time + expiration_delta},
+            {"user_id": user.id, "exp": current_time + expiration_delta, "jti": session_id},
             app.config["SECRET_KEY"],
             algorithm="HS256",
         )
 
         # Create new session with explicit timestamp
         session = Session(
-            id=str(uuid.uuid4()),
+            id=session_id,
             user_id=user.id,
             token=token,
             device_name=request.headers.get("User-Agent", "Unknown Device"),
@@ -906,6 +1022,8 @@ def login():
 
 
 @app.route("/account/password-reset/request", methods=["POST"])
+@limiter.limit(CODE_REQUEST_IP_LIMIT)
+@limiter.limit(CODE_REQUEST_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def request_password_reset():
     """Request a password reset code"""
     data = request.get_json()
@@ -924,10 +1042,11 @@ def request_password_reset():
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
 
     # Check for existing unused reset request
-    existing = PasswordReset.query.filter_by(email=email, used=False).first()
+    existing = get_pending_code_record(PasswordReset, email, {"used": False})
     if existing:
         existing.code = code
         existing.expires_at = expires_at
+        existing.attempts = 0
         existing.created_at = datetime.now(timezone.utc)
     else:
         reset_request = PasswordReset(
@@ -951,6 +1070,8 @@ def request_password_reset():
 
 
 @app.route("/account/password-reset/verify", methods=["POST"])
+@limiter.limit(CODE_CHECK_IP_LIMIT)
+@limiter.limit(CODE_CHECK_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def verify_password_reset():
     """Verify the password reset code"""
     data = request.get_json()
@@ -963,22 +1084,16 @@ def verify_password_reset():
     if len(code) != 6:
         return jsonify({"valid": False, "message": "Code must be 6 digits"}), 400
 
-    reset_request = PasswordReset.query.filter_by(
-        email=email,
-        code=code,
-        used=False
-    ).first()
-
+    reset_request, reason = verify_one_time_code(PasswordReset, email, code, {"used": False})
     if not reset_request:
-        return jsonify({"valid": False, "message": "Invalid reset code"}), 400
-
-    if datetime.now(timezone.utc) > reset_request.expires_at.replace(tzinfo=timezone.utc):
-        return jsonify({"valid": False, "message": "Reset code has expired"}), 400
+        return jsonify({"valid": False, "message": code_error_message(reason, "Reset")}), 400
 
     return jsonify({"valid": True, "message": "Code is valid"}), 200
 
 
 @app.route("/account/password-reset/complete", methods=["POST"])
+@limiter.limit(CODE_CHECK_IP_LIMIT)
+@limiter.limit(CODE_CHECK_EMAIL_LIMIT, key_func=email_rate_limit_key)
 def complete_password_reset():
     """Complete the password reset with new password"""
     data = request.get_json()
@@ -995,17 +1110,9 @@ def complete_password_reset():
         return jsonify({"message": msg}), 400
 
     # Find the reset request
-    reset_request = PasswordReset.query.filter_by(
-        email=email,
-        code=code,
-        used=False
-    ).first()
-
+    reset_request, reason = verify_one_time_code(PasswordReset, email, code, {"used": False})
     if not reset_request:
-        return jsonify({"message": "Invalid reset code"}), 400
-
-    if datetime.now(timezone.utc) > reset_request.expires_at.replace(tzinfo=timezone.utc):
-        return jsonify({"message": "Reset code has expired"}), 400
+        return jsonify({"message": code_error_message(reason, "Reset")}), 400
 
     # Find user and update password
     user = User.query.filter_by(email=email).first()
@@ -1043,7 +1150,7 @@ def check_user():
 def verify():
     token = request.get_json().get("token")
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         update_session_activity(token)  # Add this line
         return jsonify({"user_id": data["user_id"]})
     except jwt.ExpiredSignatureError:
@@ -1059,7 +1166,7 @@ def get_user_details():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         update_session_activity(token)  # Add this line
         user = User.query.get(data["user_id"])
 
@@ -1091,7 +1198,7 @@ def upload_profile_picture():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
 
         if "file" not in request.files:
@@ -1198,7 +1305,7 @@ def get_security_data():
         update_session_activity(token)
 
         # Verify token
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
 
         if not user:
@@ -1267,7 +1374,7 @@ def toggle_legacy_signin():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         if not user:
             return jsonify({"message": "User not found"}), 404
@@ -1301,7 +1408,7 @@ def end_session():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         session_id = request.json.get("sessionId")
 
@@ -1388,7 +1495,7 @@ def oauth_authorize():
             user = None
             if token:
                 try:
-                    data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+                    data = decode_session_token(token)
                     user = User.query.get(data.get("user_id"))
                 except Exception:
                     user = None
@@ -1412,7 +1519,7 @@ def oauth_authorize():
         return jsonify({"error": "invalid_request", "error_description": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         if not user:
             return jsonify({"error": "invalid_request", "error_description": "User not found"}), 404
@@ -1496,7 +1603,7 @@ def check_authorization():
         return jsonify({"error": "missing_token"}), 401
         
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user_id = data["user_id"]
     except:
         return jsonify({"error": "invalid_token"}), 401
@@ -1558,7 +1665,7 @@ def oauth_approve():
 
     try:
         # Verify user token
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user:
@@ -1852,7 +1959,7 @@ def get_authorized_apps():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
 
         if not user:
@@ -1898,7 +2005,7 @@ def revoke_app():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         auth_id = request.json.get("app_id")  # This is actually the authorization ID
 
@@ -1934,7 +2041,7 @@ def get_developer_apps():
         return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        payload = decode_session_token(token)
         user_id = payload["user_id"]
         update_session_activity(token)
         
@@ -1968,6 +2075,8 @@ def get_developer_apps():
             } for app in apps]
         })
 
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return jsonify({"message": "Invalid or expired token"}), 401
     except Exception as e:
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
@@ -1979,7 +2088,7 @@ def create_developer_app():
         return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        payload = decode_session_token(token)
         user_id = payload["user_id"]
         update_session_activity(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -2055,7 +2164,7 @@ def update_developer_app(app_id):
         return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        payload = decode_session_token(token)
         user_id = payload["user_id"]
         update_session_activity(token)
         
@@ -2109,7 +2218,7 @@ def regenerate_client_secret(app_id):
         return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        payload = decode_session_token(token)
         user_id = payload["user_id"]
         update_session_activity(token)
         
@@ -2150,7 +2259,7 @@ def delete_developer_app(app_id):
         return jsonify({"message": "Authorization token is missing"}), 401
 
     try:
-        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        payload = decode_session_token(token)
         user_id = payload["user_id"]
         update_session_activity(token)
         
@@ -2192,7 +2301,7 @@ def check_password():
         return jsonify({'message': 'Token is missing'}), 401
 
     try:
-        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        data = decode_session_token(token)
         password = request.json.get('password')
         
         if not password:
@@ -2217,7 +2326,7 @@ def change_password():
         return jsonify({'message': 'Token is missing'}), 401
 
     try:
-        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        data = decode_session_token(token)
         user = User.query.get(data['user_id'])
         
         old_password = request.json.get('old_password')
@@ -2234,6 +2343,7 @@ def change_password():
             return jsonify({'message': msg}), 400
             
         user.set_password(new_password)
+        Session.query.filter(Session.user_id == user.id, Session.token != token).delete(synchronize_session=False)
         db.session.commit()
         
         return jsonify({'message': 'Password updated successfully'})
@@ -2272,7 +2382,7 @@ def update_profile():
         return jsonify({'message': 'Token is missing'}), 401
 
     try:
-        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        data = decode_session_token(token)
         user = User.query.get(data['user_id'])
         
         if not user:
@@ -2313,6 +2423,8 @@ def update_profile():
 
 ### Static Routes ###
 @app.route("/account/legacy-login", methods=["POST"])
+@limiter.limit(LOGIN_IP_LIMIT)
+@limiter.limit(LOGIN_EMAIL_LIMIT, key_func=email_rate_limit_key, deduct_when=is_failed_login)
 def legacy_login():
     email = request.form.get("email")
     password = request.form.get("password")
@@ -2327,14 +2439,15 @@ def legacy_login():
 
     current_time = datetime.now(timezone.utc)
     expiration_delta = timedelta(days=30)
+    session_id = str(uuid.uuid4())
     token = jwt.encode(
-        {"user_id": user.id, "exp": current_time + expiration_delta},
+        {"user_id": user.id, "exp": current_time + expiration_delta, "jti": session_id},
         app.config["SECRET_KEY"],
         algorithm="HS256",
     )
 
     session = Session(
-        id=str(uuid.uuid4()),
+        id=session_id,
         user_id=user.id,
         token=token,
         device_name=request.headers.get("User-Agent", "Legacy Device"),
@@ -2406,7 +2519,7 @@ def admin_list_all_apps():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2463,7 +2576,7 @@ def admin_verify_app(app_id):
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2496,7 +2609,7 @@ def admin_unverify_app(app_id):
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2533,7 +2646,7 @@ def admin_ban_app(app_id):
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2576,7 +2689,7 @@ def admin_unban_app(app_id):
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2607,7 +2720,7 @@ def admin_edit_app(app_id):
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2643,7 +2756,7 @@ def admin_send_legal_updates():
         return jsonify({"message": "Token is missing"}), 401
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         if not user or not user.is_admin:
@@ -2683,7 +2796,7 @@ def check_is_admin():
         return jsonify({"is_admin": False}), 200
 
     try:
-        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        data = decode_session_token(token)
         user = User.query.get(data["user_id"])
         
         return jsonify({"is_admin": user.is_admin if user else False}), 200
@@ -2733,8 +2846,27 @@ def init_db():
         # After creating tables, check if we need to perform migrations
         perform_migrations()
 
+def add_code_attempts_columns():
+    """Add the attempts column to one-time code tables (works on SQLite and PostgreSQL)."""
+    with app.app_context():
+        try:
+            inspector = inspect(db.engine)
+            for table in ("email_verification", "password_reset"):
+                if not inspector.has_table(table):
+                    continue
+                if any(col["name"] == "attempts" for col in inspector.get_columns(table)):
+                    continue
+                print(f"Migrating database: Adding attempts column to {table} table...")
+                with db.engine.begin() as connection:
+                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0"))
+                print(f"Migration complete: {table}.attempts added.")
+        except Exception as e:
+            print(f"Error adding attempts columns: {str(e)}")
+
+
 def perform_migrations():
     """Check for and apply any needed database migrations."""
+    add_code_attempts_columns()
     with app.app_context():
         try:
             # Use engine.begin() to get a connection and start a single transaction.
@@ -2794,7 +2926,7 @@ def perform_migrations():
         try:
             with db.engine.begin() as connection:
                 # --- Migration 7: Add access_token_expires_at to oauth_authorization ---
-                oauth_auth_cols = sqlalchemy_inspect(connection).get_columns("oauth_authorization")
+                oauth_auth_cols = inspect(connection).get_columns("oauth_authorization")
                 if not any(col["name"] == "access_token_expires_at" for col in oauth_auth_cols):
                     print("Migrating database: Adding access_token_expires_at column to oauth_authorization table...")
                     column_type = db.DateTime(timezone=True).compile(dialect=connection.dialect)
