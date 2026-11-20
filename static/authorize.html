@@ -365,6 +365,12 @@
                 // Proceed to load app info.
                 const appInfoResponse = await fetch(`/oauth/app-info?client_id=${params.get('client_id')}`);
                 const app = await appInfoResponse.json();
+                if (!appInfoResponse.ok) {
+                    const container = document.querySelector('.login-container');
+                    container.innerHTML = '<h2>Unable to sign in</h2><p></p>';
+                    container.querySelector('p').textContent = app.error_description || 'This application is not available.';
+                    return;
+                }
 
                 const appNameContainer = document.createElement('span');
                 appNameContainer.id = 'app-name-container';
