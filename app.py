@@ -474,6 +474,25 @@ def sanitize_redirect_url(url, allowed_domains=None):
     except Exception:
         return None
 
+def is_registered_redirect_uri(oauth_app, redirect_uri):
+    if not redirect_uri or not oauth_app or not oauth_app.redirect_uri:
+        return False
+    registered_uris = [uri.strip() for uri in oauth_app.redirect_uri.split(',')]
+    return redirect_uri in registered_uris
+
+def validate_redirect_uri_for_registration(uri):
+    if not isinstance(uri, str) or not uri or uri != uri.strip() or ',' in uri:
+        return False
+    try:
+        parsed = urlparse(uri)
+    except ValueError:
+        return False
+    if not parsed.netloc or not parsed.hostname or parsed.fragment:
+        return False
+    if parsed.scheme == "https":
+        return True
+    return parsed.scheme == "http" and parsed.hostname in ("localhost", "127.0.0.1", "::1")
+
 def send_verification_email(email, code):
     try:
         if not all([app.config['SMTP_USERNAME'], app.config['SMTP_PASSWORD'], app.config['SMTP_FROM_EMAIL']]):
@@ -1342,27 +1361,12 @@ def oauth_authorize():
                 "error_description": "This app has been banned and cannot be used. If you are a user, do not continue using this app. If you are the app developer, please send an email to id@joshattic.us to appeal this ban."
             }), 403
         
-        # Validate redirect URI against registered URIs (comma-separated list)
-        try:
-            registered_uris = [uri.strip() for uri in oauth_app.redirect_uri.split(',')]
-            request_uri = urlparse(redirect_uri)
-            
-            valid_uri = False
-            for registered in registered_uris:
-                reg_parsed = urlparse(registered)
-                if (reg_parsed.scheme == request_uri.scheme and
-                    reg_parsed.netloc == request_uri.netloc and
-                    (not reg_parsed.path or request_uri.path.startswith(reg_parsed.path))):
-                    valid_uri = True
-                    break
-            
-            if not valid_uri:
-                return jsonify({
-                    "error": "invalid_redirect_uri",
-                    "error_description": f"The redirect URI must match one of the registered URIs. Got: {redirect_uri}"
-                }), 400
-        except ValueError:
-            return jsonify({"error": "invalid_redirect_uri", "error_description": "Malformed redirect URI"}), 400
+        # Validate redirect URI against registered URIs (exact match)
+        if not is_registered_redirect_uri(oauth_app, redirect_uri):
+            return jsonify({
+                "error": "invalid_redirect_uri",
+                "error_description": f"The redirect URI must match one of the registered URIs. Got: {redirect_uri}"
+            }), 400
 
         requested_scopes = scope.split()
         if not all(s in OAUTH_SCOPES for s in requested_scopes):
@@ -1429,23 +1433,8 @@ def oauth_authorize():
         if not oauth_app:
             return jsonify({"error": "invalid_client"}), 400
         
-        # Validate redirect URI against registered URIs (comma-separated list)
-        try:
-            registered_uris = [uri.strip() for uri in oauth_app.redirect_uri.split(',')]
-            request_uri = urlparse(redirect_uri)
-            
-            valid_uri = False
-            for registered in registered_uris:
-                reg_parsed = urlparse(registered)
-                if (reg_parsed.scheme == request_uri.scheme and
-                    reg_parsed.netloc == request_uri.netloc and
-                    (not reg_parsed.path or request_uri.path.startswith(reg_parsed.path))):
-                    valid_uri = True
-                    break
-            
-            if not valid_uri:
-                return jsonify({"error": "invalid_redirect_uri"}), 400
-        except ValueError:
+        # Validate redirect URI against registered URIs (exact match)
+        if not is_registered_redirect_uri(oauth_app, redirect_uri):
             return jsonify({"error": "invalid_redirect_uri"}), 400
         requested_scopes = scope.split()
         if not all(s in OAUTH_SCOPES for s in requested_scopes):
@@ -1566,27 +1555,12 @@ def oauth_approve():
         if not redirect_uri:
             return jsonify({"error": "invalid_request", "details": "Missing redirect_uri"}), 400
         
-        # Validate redirect URI against registered URIs (comma-separated list)
-        try:
-            registered_uris = [uri.strip() for uri in oauth_app.redirect_uri.split(',')]
-            request_uri = urlparse(redirect_uri)
-            
-            valid_uri = False
-            for registered in registered_uris:
-                reg_parsed = urlparse(registered)
-                if (reg_parsed.scheme == request_uri.scheme and
-                    reg_parsed.netloc == request_uri.netloc and
-                    (not reg_parsed.path or request_uri.path.startswith(reg_parsed.path))):
-                    valid_uri = True
-                    break
-            
-            if not valid_uri:
-                return jsonify({
-                    "error": "invalid_redirect_uri",
-                    "details": "The redirect URI must match one of the registered URIs"
-                }), 400
-        except ValueError:
-            return jsonify({"error": "invalid_redirect_uri", "details": "Malformed redirect URI"}), 400
+        # Validate redirect URI against registered URIs (exact match)
+        if not is_registered_redirect_uri(oauth_app, redirect_uri):
+            return jsonify({
+                "error": "invalid_redirect_uri",
+                "details": "The redirect URI must match one of the registered URIs"
+            }), 400
 
         # Validate scopes
         requested_scopes = scope.split()
@@ -1983,9 +1957,8 @@ def create_developer_app():
         return jsonify({"message": "You can only have up to 10 redirect URIs"}), 400
 
     for uri in redirect_uris:
-        parsed_uri = urlparse(uri)
-        if not all([parsed_uri.scheme, parsed_uri.netloc]):
-            return jsonify({"message": f"Invalid redirect URI: {uri}"}), 400
+        if not validate_redirect_uri_for_registration(uri):
+            return jsonify({"message": f"Invalid redirect URI: {uri}. Redirect URIs must use https (http is only allowed for localhost)"}), 400
 
     try:
         new_app = OAuthApp(
@@ -2076,9 +2049,8 @@ def update_developer_app(app_id):
         return jsonify({"message": "You can only have up to 10 redirect URIs"}), 400
 
     for uri in redirect_uris:
-        parsed_uri = urlparse(uri)
-        if not all([parsed_uri.scheme, parsed_uri.netloc]):
-            return jsonify({"message": f"Invalid redirect URI: {uri}"}), 400
+        if not validate_redirect_uri_for_registration(uri):
+            return jsonify({"message": f"Invalid redirect URI: {uri}. Redirect URIs must use https (http is only allowed for localhost)"}), 400
 
     app_to_update.name = name
     app_to_update.redirect_uri = ",".join(redirect_uris)
@@ -2608,7 +2580,11 @@ def admin_edit_app(app_id):
         if "name" in update_data:
             oauth_app.name = update_data["name"]
         if "redirect_uri" in update_data:
-            oauth_app.redirect_uri = update_data["redirect_uri"]
+            new_redirect_uris = [uri.strip() for uri in str(update_data["redirect_uri"]).split(',')]
+            invalid_uris = [uri for uri in new_redirect_uris if not validate_redirect_uri_for_registration(uri)]
+            if invalid_uris:
+                return jsonify({"message": f"Invalid redirect URI: {invalid_uris[0]}. Redirect URIs must use https (http is only allowed for localhost)"}), 400
+            oauth_app.redirect_uri = ",".join(new_redirect_uris)
         if "website" in update_data:
             oauth_app.website = update_data["website"]
         
