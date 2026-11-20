@@ -1384,7 +1384,7 @@ def oauth_authorize():
 
             if not user:
                 from urllib.parse import quote
-                current_path = request.full_path.rstrip("?")
+                current_path = request.full_path if request.query_string else request.path
                 return redirect(f"/?legacy=1&error=login_required&next={quote(current_path)}")
 
             if not getattr(user, 'allow_legacy_signin', True):
