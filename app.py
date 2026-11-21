@@ -2873,14 +2873,8 @@ def authorize_oauth_app():
     user_agent = request.headers.get("User-Agent", "")
     legacy_override = request.args.get("legacy") == "1"
     if is_legacy_browser(user_agent, legacy_override):
-        client_id = request.args.get("client_id")
-        redirect_uri = request.args.get("redirect_uri")
-        scope = request.args.get("scope", "")
-        state = request.args.get("state")
-        oauth_app, error = get_oauth_app(client_id=client_id)
-        if error:
-            return error
-        return render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state)
+        query = request.query_string.decode()
+        return redirect(f"/oauth/authorize?{query}" if query else "/oauth/authorize")
     return send_from_directory("static", "authorize.html")
 
 
