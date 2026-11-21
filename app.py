@@ -13,6 +13,8 @@ from datetime import datetime, timedelta, timezone
 import uuid
 import pathlib
 import secrets
+import hmac
+import hashlib
 from sqlalchemy import text, inspect
 from urllib.parse import urlparse
 import base64
@@ -437,7 +439,12 @@ def is_registered_redirect_uri(oauth_app, redirect_uri):
         return False
     return False
 
-def render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state, user=None, error=None):
+def oauth_authorize_csrf_token(session_token, client_id, redirect_uri, scope, state):
+    """CSRF token for the cookie-authenticated legacy consent form, bound to the session and request."""
+    message = "\x1f".join(["oauth-authorize", session_token or "", client_id or "", redirect_uri or "", scope or "", state or ""])
+    return hmac.new(app.config["SECRET_KEY"].encode(), message.encode(), hashlib.sha256).hexdigest()
+
+def render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state, user=None, error=None, csrf_token=""):
     filepath = os.path.join(app.root_path, "static", "legacy_authorize.html")
     with open(filepath, "r", encoding="utf-8") as f:
         html = f.read()
@@ -466,6 +473,7 @@ def render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, stat
     html = html.replace("<!--REDIRECT_URI-->", str(escape(redirect_uri)))
     html = html.replace("<!--SCOPE-->", str(escape(scope or "")))
     html = html.replace("<!--STATE-->", str(escape(state or "")))
+    html = html.replace("<!--CSRF_TOKEN-->", str(escape(csrf_token or "")))
     html = html.replace("<!--CANCEL_URL-->", str(escape(redirect_uri or "#")))
     html = html.replace("<!--USER_INFO_BAR-->", user_bar)
     html = html.replace("<!--ERROR_BOX-->", error_box)
@@ -1538,11 +1546,14 @@ def oauth_authorize():
             if not getattr(user, 'allow_legacy_signin', True):
                 return redirect("/?legacy=1&error=legacy_disabled")
 
-            return render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state, user=user)
+            csrf_token = oauth_authorize_csrf_token(token, client_id, redirect_uri, scope, state)
+            return render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state, user=user, csrf_token=csrf_token)
 
         return send_from_directory("static", "authorize.html")
 
-    token = request.cookies.get("session_token") or request.headers.get("Authorization") or request.form.get("token")
+    explicit_token = request.headers.get("Authorization") or request.form.get("token")
+    token = explicit_token or request.cookies.get("session_token")
+    token_from_cookie = not explicit_token
     if not token:
         if request.form.get("legacy") == "1" or is_legacy_browser(request.headers.get("User-Agent", "")):
             return redirect("/?legacy=1&error=login_required")
@@ -1578,6 +1589,12 @@ def oauth_authorize():
             return error
         if not oauth_app:
             return jsonify({"error": "invalid_client"}), 400
+
+        if token_from_cookie:
+            submitted_csrf = request.form.get("csrf_token") or ""
+            expected_csrf = oauth_authorize_csrf_token(token, client_id, redirect_uri, scope, state)
+            if not hmac.compare_digest(submitted_csrf, expected_csrf):
+                return jsonify({"error": "invalid_request", "error_description": "Invalid or missing CSRF token"}), 403
         
         # Validate redirect URI against registered URIs (comma-separated list)
         try:
@@ -2856,14 +2873,8 @@ def authorize_oauth_app():
     user_agent = request.headers.get("User-Agent", "")
     legacy_override = request.args.get("legacy") == "1"
     if is_legacy_browser(user_agent, legacy_override):
-        client_id = request.args.get("client_id")
-        redirect_uri = request.args.get("redirect_uri")
-        scope = request.args.get("scope", "")
-        state = request.args.get("state")
-        oauth_app, error = get_oauth_app(client_id=client_id)
-        if error:
-            return error
-        return render_legacy_authorize_page(oauth_app, client_id, redirect_uri, scope, state)
+        query = request.query_string.decode()
+        return redirect(f"/oauth/authorize?{query}" if query else "/oauth/authorize")
     return send_from_directory("static", "authorize.html")
 
 
